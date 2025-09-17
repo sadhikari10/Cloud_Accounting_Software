@@ -9,7 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize input
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'];
-    $login_at = $_POST['login_at']; // Nepali time from frontend
 
     if (empty($email) || empty($password)) {
         $error = "Please enter both email and password.";
@@ -44,6 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['SuperAdminID'] = $id;
                     $_SESSION['SuperAdminName'] = $displayName;
                     session_regenerate_id(true);
+
+                    // ---------------------------
+                    // Server-side Nepali time
+                    // ---------------------------
+                    $utc = new DateTime("now", new DateTimeZone("UTC"));
+                    $utc->setTimezone(new DateTimeZone("Asia/Kathmandu"));
+                    $login_at = $utc->format('Y-m-d H:i:s');
 
                     // Update LastLoginAt in SuperAdmin
                     $updateStmt = $conn->prepare("UPDATE SuperAdmin SET LastLoginAt = NOW() WHERE SuperAdminID = ?");
@@ -96,7 +102,7 @@ $conn->close();
             <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
-        <form action="" method="POST" onsubmit="getNepaliTime()">
+        <form action="" method="POST">
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" placeholder="Enter email" required value="<?php echo isset($email)?htmlspecialchars($email):''; ?>">
@@ -105,18 +111,8 @@ $conn->close();
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" placeholder="Enter password" required>
             </div>
-            <input type="hidden" name="login_at" id="login_at">
             <button type="submit" class="login-btn">Login</button>
         </form>
     </div>
-
-    <script>
-        function getNepaliTime() {
-            const now = new Date();
-            // UTC+5:45 for Nepal
-            const nepaliTime = new Date(now.getTime() + (5*60 + 45)*60000);
-            document.getElementById('login_at').value = nepaliTime.toISOString().slice(0,19).replace('T', ' ');
-        }
-    </script>
 </body>
 </html>
