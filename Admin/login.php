@@ -115,4 +115,7 @@ $conn->close();
         </form>
     </div>
 </body>
+<?php 
+    include '../Common/footer.php';
+?>
 </html>

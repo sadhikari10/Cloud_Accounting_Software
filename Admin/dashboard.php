@@ -31,4 +31,7 @@ $adminName = $_SESSION['SuperAdminName'];
         </div>
     </div>
 </body>
+<?php 
+    include '../Common/footer.php';
+?>
 </html>

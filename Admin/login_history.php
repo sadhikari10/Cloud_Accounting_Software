@@ -51,6 +51,9 @@ $result = $stmt->get_result();
         <a href="dashboard.php" class="back-btn">Back to Dashboard</a>
     </div>
 </body>
+<?php 
+    include '../Common/footer.php';
+?>
 </html>
 
 <?php
