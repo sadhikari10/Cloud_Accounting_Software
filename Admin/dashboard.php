@@ -17,21 +17,23 @@ $adminName = $_SESSION['SuperAdminName'];
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="dashboard-page">
-    <div class="dashboard-container">
-        <h2>Welcome, <?php echo htmlspecialchars($adminName); ?>!</h2>
+    <main>
+        <div class="dashboard-container">
+            <h2>Welcome, <?php echo htmlspecialchars($adminName); ?>!</h2>
 
-        <div class="dashboard-buttons">
-            <form action="logout.php" method="POST" style="display:inline;">
-                <button type="submit" class="dashboard-btn">Logout</button>
-            </form>
+            <div class="dashboard-buttons">
+                <form action="logout.php" method="POST" style="display:inline;">
+                    <button type="submit" class="dashboard-btn">Logout</button>
+                </form>
 
-            <form action="login_history.php" method="GET" style="display:inline;">
-                <button type="submit" class="dashboard-btn">See Previous Logins</button>
-            </form>
+                <form action="login_history.php" method="GET" style="display:inline;">
+                    <button type="submit" class="dashboard-btn">See Previous Logins</button>
+                </form>
+            </div>
         </div>
-    </div>
+    </main>
+    <?php 
+        include '../Common/footer.php';
+    ?>
 </body>
-<?php 
-    include '../Common/footer.php';
-?>
 </html>
