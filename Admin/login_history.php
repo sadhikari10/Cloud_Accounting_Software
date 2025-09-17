@@ -27,33 +27,35 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="history-page">
-    <div class="history-container">
-        <h2>Previous Logins</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Login Time (Nepali)</th>
-                    <th>IP Address</th>
-                    <th>User Agent</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while($row = $result->fetch_assoc()): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($row['LoginAt']); ?></td>
-                    <td><?php echo htmlspecialchars($row['IPAddress']); ?></td>
-                    <td><?php echo htmlspecialchars($row['UserAgent']); ?></td>
-                </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
-        <br>
-        <a href="dashboard.php" class="back-btn">Back to Dashboard</a>
-    </div>
+    <main>
+        <div class="history-container">
+            <h2>Previous Logins</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Login Time (Nepali)</th>
+                        <th>IP Address</th>
+                        <th>User Agent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while($row = $result->fetch_assoc()): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($row['LoginAt']); ?></td>
+                        <td><?php echo htmlspecialchars($row['IPAddress']); ?></td>
+                        <td><?php echo htmlspecialchars($row['UserAgent']); ?></td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+            <br>
+            <a href="dashboard.php" class="back-btn">Back to Dashboard</a>
+        </div>
+    </main>
+    <?php 
+        include '../Common/footer.php';
+    ?>
 </body>
-<?php 
-    include '../Common/footer.php';
-?>
 </html>
 
 <?php

@@ -5,9 +5,6 @@
     padding:15px 10px;
     font-size:14px;
     width:100%;
-    position:absolute;
-    left:0;
-    bottom:0;
     box-sizing:border-box;
 ">
     &copy; <?php echo date('Y'); ?> All rights reserved. 
