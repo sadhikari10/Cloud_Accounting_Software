@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Sanitize input
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'];
+    $role = isset($_POST['role']) ? trim($_POST['role']) : '';
 
     if (empty($email) || empty($password)) {
         $error = "Please enter both email and password.";
@@ -16,9 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Verify admin credentials
         $stmt = $conn->prepare("SELECT SuperAdminID, PasswordHash, FirstName, LastName, Status 
                                 FROM SuperAdmin 
-                                WHERE Email = ?");
+                                WHERE Email = ? AND Role = ?");
         if ($stmt) {
-            $stmt->bind_param("s", $email);
+            $stmt->bind_param("ss", $email, $role);
             $stmt->execute();
             $stmt->store_result();
 
@@ -111,8 +112,22 @@ $conn->close();
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" placeholder="Enter password" required>
             </div>
+            <!-- Role dropdown -->
+            <div class="form-group">
+                <label for="role">Role</label>
+                <select id="role" name="role" required>
+                    <option value="">-- Select Role --</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Staff">Staff</option>
+                </select>
+            </div>
+
             <button type="submit" class="login-btn">Login</button>
         </form>
+        <p class="register-link">
+            Don’t have an account yet?
+            <a href="register.php">Register here</a>
+        </p>
     </div>
 </body>
 <?php 
