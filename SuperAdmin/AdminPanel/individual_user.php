@@ -36,6 +36,19 @@ $stmt->bind_param("i", $userID);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
+$stmt->close();
+
+// Fetch login history for this user
+$historyStmt = $conn->prepare("SELECT LoginAt, IPAddress, UserAgent 
+                               FROM AdminLoginHistory 
+                               WHERE SuperAdminID = ? 
+                               ORDER BY LoginAt DESC");
+$historyStmt->bind_param("i", $userID);
+$historyStmt->execute();
+$historyResult = $historyStmt->get_result();
+$historyStmt->close();
+
+$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -43,14 +56,20 @@ $user = $result->fetch_assoc();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>View Individual User Details</title>
+<title>Individual User Details</title>
 <link rel="stylesheet" href="../style.css">
-
+<style>
+.table-responsive { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+.success-message { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+.history-table th, .history-table td { padding: 8px; border: 1px solid #ccc; }
+</style>
 </head>
 <body class="dashboard-page">
 <main>
     <div class="dashboard-container">
-        <h2>Individual Details</h2>
+        <h2>Individual User Details</h2>
 
         <?php if($statusMessage): ?>
             <div class="success-message"><?php echo htmlspecialchars($statusMessage); ?></div>
@@ -65,7 +84,7 @@ $user = $result->fetch_assoc();
                         <tr><th>Email</th><td><?php echo htmlspecialchars($user['Email']); ?></td></tr>
                         <tr><th>Phone Number</th><td><?php echo htmlspecialchars($user['PhoneNumber']); ?></td></tr>
 
-                        <!-- Status row with current and dropdown -->
+                        <!-- Status row -->
                         <tr>
                             <th>Status</th>
                             <td>
@@ -88,6 +107,29 @@ $user = $result->fetch_assoc();
                     </tbody>
                 </table>
             </div>
+
+            <!-- Login history -->
+            <h3>Login History</h3>
+            <div class="table-responsive">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Login Time (Nepali)</th>
+                            <th>IP Address</th>
+                            <th>User Agent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while($row = $historyResult->fetch_assoc()): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($row['LoginAt']); ?></td>
+                            <td><?php echo htmlspecialchars($row['IPAddress']); ?></td>
+                            <td><?php echo htmlspecialchars($row['UserAgent']); ?></td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
         <?php else: ?>
             <p>User not found.</p>
         <?php endif; ?>
@@ -95,15 +137,9 @@ $user = $result->fetch_assoc();
         <div style="text-align:center; margin-top:20px;">
             <a href="system_users.php" class="dashboard-btn">Back to Accounts</a>
         </div>
-
     </div>
 </main>
 
 <?php include '../../Common/footer.php'; ?>
 </body>
 </html>
-
-<?php
-$stmt->close();
-$conn->close();
-?>
