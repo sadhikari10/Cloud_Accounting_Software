@@ -359,3 +359,19 @@ table tr:nth-child(even) {
             padding-left: 0;
         }
     }
+    .search-container {
+        margin-bottom: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .search-container input[type="text"] {
+        padding: 5px 10px;
+        flex: 1;
+        min-width: 200px;
+    }
+    .search-container button {
+        padding: 6px 12px;
+        cursor: pointer;
+    }
