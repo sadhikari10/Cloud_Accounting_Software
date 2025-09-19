@@ -14,7 +14,7 @@ $adminName = $_SESSION['SuperAdminName'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SuperAdmin Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../style.css">
 </head>
 <body class="dashboard-page">
     <main>
@@ -29,11 +29,15 @@ $adminName = $_SESSION['SuperAdminName'];
                 <form action="login_history.php" method="GET" style="display:inline;">
                     <button type="submit" class="dashboard-btn">See Previous Logins</button>
                 </form>
+
+                <form action="system_users.php" method="GET" style="display:inline;">
+                    <button type="submit" class="dashboard-btn">Accounts Details</button>
+                </form>
             </div>
         </div>
     </main>
     <?php 
-        include '../Common/footer.php';
+        include '../../Common/footer.php';
     ?>
 </body>
 </html>

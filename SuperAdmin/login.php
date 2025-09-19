@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password) || empty($role)) {
         $error = "Please fill in all fields.";
     } else {
-        $stmt = $conn->prepare("SELECT SuperAdminID, PasswordHash, FirstName, LastName, Status 
+        $stmt = $conn->prepare("SELECT SuperAdminID, PasswordHash, FirstName, LastName, Status, Role 
                                 FROM SuperAdmin 
                                 WHERE Email = ? AND Role = ?");
         if ($stmt) {
@@ -22,31 +22,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->store_result();
 
             if ($stmt->num_rows > 0) {
-                $stmt->bind_result($id, $hash, $firstName, $lastName, $status);
+                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $dbRole);
                 $stmt->fetch();
 
                 if ($status !== 'Active') {
-                    // Inactive account triggers modal
+                    // Inactive staff triggers modal
                     $error = "inactive"; 
                 } elseif (password_verify($password, $hash)) {
                     // Successful login
                     $firstName = trim($firstName);
                     $lastName = trim($lastName);
-                    $displayName = (empty($lastName) || strtolower($firstName) === strtolower($lastName)) ? $firstName : $firstName . ' ' . $lastName;
+                    $displayName = (empty($lastName) || strtolower($firstName) === strtolower($lastName)) 
+                                   ? $firstName : $firstName . ' ' . $lastName;
 
                     $_SESSION['SuperAdminID'] = $id;
                     $_SESSION['SuperAdminName'] = $displayName;
+                    $_SESSION['Role'] = $dbRole;
                     session_regenerate_id(true);
 
+                    // Log time in Nepali timezone
                     $utc = new DateTime("now", new DateTimeZone("UTC"));
                     $utc->setTimezone(new DateTimeZone("Asia/Kathmandu"));
                     $login_at = $utc->format('Y-m-d H:i:s');
 
+                    // Update last login
                     $updateStmt = $conn->prepare("UPDATE SuperAdmin SET LastLoginAt = NOW() WHERE SuperAdminID = ?");
                     $updateStmt->bind_param("i", $id);
                     $updateStmt->execute();
                     $updateStmt->close();
 
+                    // Insert login history
                     $ip = $_SERVER['REMOTE_ADDR'];
                     $userAgent = $_SERVER['HTTP_USER_AGENT'];
                     $historyStmt = $conn->prepare("INSERT INTO AdminLoginHistory (SuperAdminID, LoginAt, IPAddress, UserAgent) VALUES (?, ?, ?, ?)");
@@ -54,9 +59,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $historyStmt->execute();
                     $historyStmt->close();
 
-                    header("Location: dashboard.php");
-                    exit;
-                } else {
+                    // Redirect based on role
+                    $roleNormalized = strtolower(trim($dbRole));
+                    if ($roleNormalized === 'admin') {
+                        header("Location: AdminPanel/dashboard.php");
+                        exit;
+                    } else { // Staff
+                        header("Location: StaffPanel/staff_dashboard.php");
+                        exit;
+                        }
+                } 
+                else {
                     $error = "Invalid email or password.";
                 }
             } else {
@@ -119,7 +132,7 @@ $conn->close();
             </div>
         </main>
 
-    <!-- Modal HTML -->
+        <!-- Modal for inactive staff -->
         <div id="inactiveModal" class="modal">
             <div class="modal-content">
                 <span class="modal-close">&times;</span>
@@ -134,17 +147,13 @@ $conn->close();
         const modal = document.getElementById('inactiveModal');
         const closeBtn = document.querySelector('.modal-close');
 
-        // Show modal if account is inactive
         <?php if($error === "inactive"): ?>
         modal.style.display = "block";
         <?php endif; ?>
 
-        // Close modal on clicking X
         closeBtn.onclick = function() {
             modal.style.display = "none";
         }
-
-        // Close modal if clicked outside content
         window.onclick = function(event) {
             if (event.target === modal) {
                 modal.style.display = "none";

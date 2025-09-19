@@ -263,3 +263,46 @@ body.history-page {
     font-size: 18px;
     color: #333;
 }
+/* Responsive Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background-color: #fff;
+    color: #333;
+    table-layout: auto;
+}
+
+/* Table headers and cells */
+table th, table td {
+    border: 1px solid #ccc;
+    padding: 12px;
+    text-align: left; /* Left align for mobile readability */
+}
+
+table th {
+    background-color: #2575fc;
+    color: white;
+}
+
+table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+/* Make table horizontally scrollable on small screens */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* Optional: make text smaller on very small screens */
+@media (max-width: 500px) {
+    table th, table td {
+        padding: 8px;
+        font-size: 14px;
+    }
+    .dashboard-btn, .back-btn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+}
