@@ -306,3 +306,56 @@ table tr:nth-child(even) {
         font-size: 14px;
     }
 }
+.table-responsive {
+        overflow-x:auto;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    th, td {
+        border: 1px solid #ccc;
+        padding: 10px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+        width: 30%;
+    }
+    .dashboard-btn {
+        padding: 6px 12px;
+        cursor: pointer;
+        background-color: #007bff;
+        border: none;
+        color: #fff;
+        border-radius: 4px;
+    }
+    .success-message {
+        text-align: center;
+        color: green;
+        margin-bottom: 15px;
+    }
+
+    /* Responsive for small screens */
+    @media (max-width: 600px) {
+        th, td {
+            display: block;
+            width: 100%;
+        }
+        tr {
+            margin-bottom: 10px;
+            display: block;
+            border-bottom: 2px solid #ddd;
+        }
+        th {
+            background-color: transparent;
+            border: none;
+            font-weight: bold;
+        }
+        td {
+            border: none;
+            padding-left: 0;
+        }
+    }

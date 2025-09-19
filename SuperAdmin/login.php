@@ -35,9 +35,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $displayName = (empty($lastName) || strtolower($firstName) === strtolower($lastName)) 
                                    ? $firstName : $firstName . ' ' . $lastName;
 
+                    // Store session variables
                     $_SESSION['SuperAdminID'] = $id;
                     $_SESSION['SuperAdminName'] = $displayName;
                     $_SESSION['Role'] = $dbRole;
+                    $_SESSION['SuperAdminEmail'] = $email; // <-- NEW
                     session_regenerate_id(true);
 
                     // Log time in Nepali timezone
@@ -67,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else { // Staff
                         header("Location: StaffPanel/staff_dashboard.php");
                         exit;
-                        }
+                    }
                 } 
                 else {
                     $error = "Invalid email or password.";
@@ -88,77 +90,77 @@ $conn->close();
 
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Admin Login</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <main>
-            <div class="login-container">
-                <h2>Admin Login</h2>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main>
+        <div class="login-container">
+            <h2>Admin Login</h2>
 
-                <?php if($error && $error !== "inactive"): ?>
-                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
+            <?php if($error && $error !== "inactive"): ?>
+                <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
 
-                <form action="" method="POST">
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" placeholder="Enter email" required value="<?php echo isset($email)?htmlspecialchars($email):''; ?>">
-                    </div>
+            <form action="" method="POST">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" placeholder="Enter email" required value="<?php echo isset($email)?htmlspecialchars($email):''; ?>">
+                </div>
 
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" placeholder="Enter password" required>
-                    </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter password" required>
+                </div>
 
-                    <div class="form-group">
-                        <label for="role">Role</label>
-                        <select id="role" name="role" required>
-                            <option value="">-- Select Role --</option>
-                            <option value="Admin">Admin</option>
-                            <option value="Staff">Staff</option>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" name="role" required>
+                        <option value="">-- Select Role --</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Staff">Staff</option>
+                    </select>
+                </div>
 
-                    <button type="submit" class="login-btn">Login</button>
-                </form>
+                <button type="submit" class="login-btn">Login</button>
+            </form>
 
-                <p class="register-link">
-                    Don’t have an account yet? <a href="register.php">Register here</a>
-                </p>
-            </div>
-        </main>
-
-        <!-- Modal for inactive staff -->
-        <div id="inactiveModal" class="modal">
-            <div class="modal-content">
-                <span class="modal-close">&times;</span>
-                <h3>Your account is inactive. Please wait for admin activation to login.</h3>
-            </div>
+            <p class="register-link">
+                Don’t have an account yet? <a href="register.php">Register here</a>
+            </p>
         </div>
+    </main>
 
-        <?php include '../Common/footer.php'; ?>
+    <!-- Modal for inactive staff -->
+    <div id="inactiveModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h3>Your account is inactive. Please wait for admin activation to login.</h3>
+        </div>
+    </div>
 
-        <script>
-        // Modal logic
-        const modal = document.getElementById('inactiveModal');
-        const closeBtn = document.querySelector('.modal-close');
+    <?php include '../Common/footer.php'; ?>
 
-        <?php if($error === "inactive"): ?>
-        modal.style.display = "block";
-        <?php endif; ?>
+    <script>
+    // Modal logic
+    const modal = document.getElementById('inactiveModal');
+    const closeBtn = document.querySelector('.modal-close');
 
-        closeBtn.onclick = function() {
+    <?php if($error === "inactive"): ?>
+    modal.style.display = "block";
+    <?php endif; ?>
+
+    closeBtn.onclick = function() {
+        modal.style.display = "none";
+    }
+    window.onclick = function(event) {
+        if (event.target === modal) {
             modal.style.display = "none";
         }
-        window.onclick = function(event) {
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
-        }
-        </script>
-    </body>
+    }
+    </script>
+</body>
 </html>

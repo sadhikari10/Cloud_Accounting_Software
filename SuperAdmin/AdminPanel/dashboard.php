@@ -22,7 +22,7 @@ $adminName = $_SESSION['SuperAdminName'];
             <h2>Welcome, <?php echo htmlspecialchars($adminName); ?>!</h2>
 
             <div class="dashboard-buttons">
-                <form action="logout.php" method="POST" style="display:inline;">
+                <form action="../logout.php" method="POST" style="display:inline;">
                     <button type="submit" class="dashboard-btn">Logout</button>
                 </form>
 
