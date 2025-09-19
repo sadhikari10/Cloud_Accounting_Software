@@ -6,43 +6,52 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Ensure full height for html and body */
+/* Full height and fixed gradient background */
 html, body {
     height: 100%;
     margin: 0;
-}
-
-/* Wrapper to push footer to bottom */
-body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
     background: linear-gradient(135deg, #6a11cb, #2575fc);
+    background-attachment: fixed; /* Keep gradient fixed during scroll */
+    background-repeat: no-repeat;
+    background-size: cover;
 }
 
-/* Main content area takes remaining space */
+/* Main content wrapper */
 main {
     flex: 1 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 50px 0;
+    background: transparent; /* Ensure main does not alter gradient */
 }
 
-/* Footer sticks to bottom */
+/* Footer stick to bottom */
 footer {
     flex-shrink: 0;
 }
 
-/* Login container */
-.login-container {
+/* Login/Register container */
+.login-container, .register-container {
     background-color: #fff;
     padding: 40px 30px;
     border-radius: 15px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    width: 350px;
+    width: 400px; /* Slightly wider for register */
     text-align: center;
-    margin: auto; /* Center login container */
+    margin: 50px auto;
+}
+
+/* Responsive for small screens */
+@media (max-width: 450px) {
+    .login-container, .register-container {
+        width: 90%;
+        padding: 30px 20px;
+    }
 }
 
 /* Heading */
-.login-container h2 {
+.login-container h2, .register-container h2 {
     margin-bottom: 25px;
     color: #333;
     font-size: 28px;
@@ -51,6 +60,7 @@ footer {
 /* Form groups */
 .form-group {
     margin-bottom: 20px;
+    position: relative;
     text-align: left;
 }
 
@@ -78,7 +88,16 @@ footer {
     outline: none;
 }
 
-/* Login button */
+/* Eye icon for password fields */
+.password-group i.toggle-password {
+    position: absolute;
+    top: 35px;
+    right: 12px;
+    cursor: pointer;
+    color: #888;
+}
+
+/* Login/Register button */
 .login-btn {
     width: 100%;
     padding: 12px;
@@ -96,18 +115,8 @@ footer {
     background: #6a11cb;
 }
 
-/* Responsive */
-@media (max-width: 400px) {
-    .login-container {
-        width: 90%;
-        padding: 30px 20px;
-    }
-}
-
-/* Error message */
-.error-message {
-    color: #fff;
-    background-color: #e74c3c;
+/* Error and Success messages */
+.error-message, .success-message {
     padding: 10px 15px;
     border-radius: 8px;
     margin-bottom: 20px;
@@ -115,10 +124,45 @@ footer {
     font-weight: 500;
 }
 
-/* General container background for dashboard and history pages */
+.error-message {
+    color: #fff;
+    background-color: #e74c3c;
+}
+
+.success-message {
+    color: #fff;
+    background-color: #27ae60;
+}
+
+/* Register/Login link */
+.register-link {
+    margin-top: 15px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.register-link a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.register-link a:hover {
+    text-decoration: underline;
+}
+
+/* Select dropdown */
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Dashboard / History container */
 .dashboard-container, .history-container {
     width: 80%;
-    margin: 50px auto 20px; /* Added bottom margin to prevent footer overlap */
+    margin: 50px auto 20px;
     text-align: center;
     background-color: #ffffff;
     padding: 30px;
@@ -127,7 +171,7 @@ footer {
     color: #333;
 }
 
-/* Buttons */
+/* Dashboard / Back buttons */
 .dashboard-btn, .back-btn {
     background-color: #2575fc;
     color: white;
@@ -139,14 +183,14 @@ footer {
     text-decoration: none;
     font-size: 16px;
     transition: 0.3s;
-    display: inline-block; /* Ensure button is not overlapped */
+    display: inline-block;
 }
 
 .dashboard-btn:hover, .back-btn:hover {
     background-color: #6a11cb;
 }
 
-/* Table */
+/* Table styling */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -170,30 +214,15 @@ table tr:nth-child(even) {
     background-color: #f9f9f9;
 }
 
-/* Remove login page gradient for dashboard/history */
-body.dashboard-page, body.history-page {
+/* Dashboard / history page background fix */
+body.dashboard-page{
     background: #f0f2f5;
+}
+
+body.history-page {
+    min-height: 100vh;       /* full viewport height */
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-.register-link {
-    margin-top: 15px;
-    text-align: center;
-    font-size: 14px;
-}
-
-.register-link a {
-    color: #007bff;
-    text-decoration: none;
-}
-
-.register-link a:hover {
-    text-decoration: underline;
-}
-.form-group select {
-    width: 100%;
-    padding: 10px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
 }
