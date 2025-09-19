@@ -1,20 +1,18 @@
 <?php
 session_start();
-require '../Common/connection.php';
+require '../Common/connection.php'; // mysqli connection
 
 $error = '';
 
-// Check if form is submitted
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Sanitize input
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
+    $password = $_POST['password'] ?? '';
     $role = isset($_POST['role']) ? trim($_POST['role']) : '';
 
-    if (empty($email) || empty($password)) {
-        $error = "Please enter both email and password.";
+    if (empty($email) || empty($password) || empty($role)) {
+        $error = "Please fill in all fields.";
     } else {
-        // Verify admin credentials
         $stmt = $conn->prepare("SELECT SuperAdminID, PasswordHash, FirstName, LastName, Status 
                                 FROM SuperAdmin 
                                 WHERE Email = ? AND Role = ?");
@@ -28,46 +26,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->fetch();
 
                 if ($status !== 'Active') {
-                    $error = "Account is inactive or suspended.";
+                    // Inactive account triggers modal
+                    $error = "inactive"; 
                 } elseif (password_verify($password, $hash)) {
                     // Successful login
-
-                    // Combine first and last name safely
                     $firstName = trim($firstName);
                     $lastName = trim($lastName);
-                    if (empty($lastName) || strtolower($firstName) === strtolower($lastName)) {
-                        $displayName = $firstName;
-                    } else {
-                        $displayName = $firstName . ' ' . $lastName;
-                    }
+                    $displayName = (empty($lastName) || strtolower($firstName) === strtolower($lastName)) ? $firstName : $firstName . ' ' . $lastName;
 
                     $_SESSION['SuperAdminID'] = $id;
                     $_SESSION['SuperAdminName'] = $displayName;
                     session_regenerate_id(true);
 
-                    // ---------------------------
-                    // Server-side Nepali time
-                    // ---------------------------
                     $utc = new DateTime("now", new DateTimeZone("UTC"));
                     $utc->setTimezone(new DateTimeZone("Asia/Kathmandu"));
                     $login_at = $utc->format('Y-m-d H:i:s');
 
-                    // Update LastLoginAt in SuperAdmin
                     $updateStmt = $conn->prepare("UPDATE SuperAdmin SET LastLoginAt = NOW() WHERE SuperAdminID = ?");
                     $updateStmt->bind_param("i", $id);
                     $updateStmt->execute();
                     $updateStmt->close();
 
-                    // Insert login history
                     $ip = $_SERVER['REMOTE_ADDR'];
                     $userAgent = $_SERVER['HTTP_USER_AGENT'];
-
                     $historyStmt = $conn->prepare("INSERT INTO AdminLoginHistory (SuperAdminID, LoginAt, IPAddress, UserAgent) VALUES (?, ?, ?, ?)");
                     $historyStmt->bind_param("isss", $id, $login_at, $ip, $userAgent);
                     $historyStmt->execute();
                     $historyStmt->close();
 
-                    // Redirect to dashboard
                     header("Location: dashboard.php");
                     exit;
                 } else {
@@ -79,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt->close();
         } else {
-            $error = "An internal error occurred. Please try again later.";
+            $error = "Internal error. Please try again later.";
         }
     }
 }
@@ -89,48 +75,81 @@ $conn->close();
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="login-container">
-        <h2>Admin Login</h2>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Admin Login</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <main>
+            <div class="login-container">
+                <h2>Admin Login</h2>
 
-        <?php if($error): ?>
-            <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+                <?php if($error && $error !== "inactive"): ?>
+                    <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
+                <?php endif; ?>
+
+                <form action="" method="POST">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="Enter email" required value="<?php echo isset($email)?htmlspecialchars($email):''; ?>">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="Enter password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="role">Role</label>
+                        <select id="role" name="role" required>
+                            <option value="">-- Select Role --</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Staff">Staff</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="login-btn">Login</button>
+                </form>
+
+                <p class="register-link">
+                    Don’t have an account yet? <a href="register.php">Register here</a>
+                </p>
+            </div>
+        </main>
+
+    <!-- Modal HTML -->
+        <div id="inactiveModal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h3>Your account is inactive. Please wait for admin activation to login.</h3>
+            </div>
+        </div>
+
+        <?php include '../Common/footer.php'; ?>
+
+        <script>
+        // Modal logic
+        const modal = document.getElementById('inactiveModal');
+        const closeBtn = document.querySelector('.modal-close');
+
+        // Show modal if account is inactive
+        <?php if($error === "inactive"): ?>
+        modal.style.display = "block";
         <?php endif; ?>
 
-        <form action="" method="POST">
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" placeholder="Enter email" required value="<?php echo isset($email)?htmlspecialchars($email):''; ?>">
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter password" required>
-            </div>
-            <!-- Role dropdown -->
-            <div class="form-group">
-                <label for="role">Role</label>
-                <select id="role" name="role" required>
-                    <option value="">-- Select Role --</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Staff">Staff</option>
-                </select>
-            </div>
+        // Close modal on clicking X
+        closeBtn.onclick = function() {
+            modal.style.display = "none";
+        }
 
-            <button type="submit" class="login-btn">Login</button>
-        </form>
-        <p class="register-link">
-            Don’t have an account yet?
-            <a href="register.php">Register here</a>
-        </p>
-    </div>
-</body>
-<?php 
-    include '../Common/footer.php';
-?>
+        // Close modal if clicked outside content
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+        </script>
+    </body>
 </html>
