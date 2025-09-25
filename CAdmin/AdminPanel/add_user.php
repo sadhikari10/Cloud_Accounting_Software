@@ -1,98 +1,60 @@
 <?php
 session_start();
-require '../Common/connection.php';
+require '../../Common/connection.php';
 
 $error = '';
-$email = '';
-$role = '';
+$success = '';
+
+// ✅ Check if admin is logged in
+if (!isset($_SESSION['CAdminID']) || !isset($_SESSION['CompanyID'])) {
+    header("Location: ../login.php");
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $firstName = trim($_POST['first_name'] ?? '');
+    $lastName = trim($_POST['last_name'] ?? '');
     $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
-    $role = $_POST['role'] ?? '';
+    $phone = trim($_POST['phone_number'] ?? '');
+    $status = $_POST['status'] ?? 'active';
 
-    if (empty($email) || empty($password) || empty($role)) {
-        $error = "Please fill in all fields.";
+    $companyId = $_SESSION['CompanyID'];
+    $createdBy = $_SESSION['CAdminID'];
+
+    if (empty($firstName) || empty($lastName) || empty($email) || empty($password)) {
+        $error = "Please fill in all required fields.";
     } else {
-        // Determine which table to check
-        if ($role === 'Admin') {
-            $table = "company_admins";
-            $idColumn = "admin_id";
-        } else { // Staff
-            $table = "company_staff";
-            $idColumn = "staff_id";
-        }
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $tempPasswordExpires = date('Y-m-d H:i:s', strtotime('+7 days'));
 
-        // Prepare statement
-        $stmt = $conn->prepare("SELECT $idColumn, password_hash, first_name, last_name, status, must_change_password
-                                FROM $table WHERE email = ? LIMIT 1");
+        $stmt = $conn->prepare("INSERT INTO company_staff 
+            (company_id, email, password_hash, first_name, last_name, phone_number, status, role, must_change_password, temp_password_expires_at, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'Staff', 1, ?, ?, NOW(), NOW())");
 
-        if (!$stmt) {
-            $error = "Internal error: Unable to process login. Please try again later.";
-        } else {
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $stmt->store_result();
+        if ($stmt) {
+            // ✅ FIX: 9 placeholders = 9 types
+            $stmt->bind_param(
+                "isssssssi",
+                $companyId,
+                $email,
+                $passwordHash,
+                $firstName,
+                $lastName,
+                $phone,
+                $status,
+                $tempPasswordExpires,
+                $createdBy
+            );
 
-            if ($stmt->num_rows > 0) {
-                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $mustChange);
-                $stmt->fetch();
-
-                if ($status !== 'active') {
-                    $error = "Your account is inactive. Please contact your admin.";
-                } elseif (password_verify($password, $hash)) {
-
-                    // First-time login check
-                    if ($mustChange == 1 && $role === 'Staff') {
-                        $_SESSION['StaffID'] = $id;
-                        $_SESSION['StaffName'] = trim($firstName . ' ' . $lastName);
-                        header("Location: change_password.php");
-                        exit;
-                    }
-
-                    // Successful login
-                    session_regenerate_id(true);
-                    if ($role === 'Admin') {
-                        $_SESSION['CAdminID'] = $id;
-                        $_SESSION['CAdminName'] = trim($firstName . ' ' . $lastName);
-                        $_SESSION['Role'] = $role;
-
-                        // Record login history
-                        $stmt2 = $conn->prepare("INSERT INTO company_user_login_history (user_id, user_type, login_at, ip_address, user_agent)
-                                                 VALUES (?, 'Admin', NOW(), ?, ?)");
-                        $ip = $_SERVER['REMOTE_ADDR'];
-                        $ua = $_SERVER['HTTP_USER_AGENT'];
-                        $stmt2->bind_param("iss", $id, $ip, $ua);
-                        $stmt2->execute();
-                        $stmt2->close();
-
-                        header("Location: AdminPanel/dashboard.php");
-                    } else {
-                        $_SESSION['UserID'] = $id;
-                        $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
-                        $_SESSION['Role'] = $role;
-
-                        // Record login history
-                        $stmt2 = $conn->prepare("INSERT INTO company_user_login_history (user_id, user_type, login_at, ip_address, user_agent)
-                                                 VALUES (?, 'Staff', NOW(), ?, ?)");
-                        $ip = $_SERVER['REMOTE_ADDR'];
-                        $ua = $_SERVER['HTTP_USER_AGENT'];
-                        $stmt2->bind_param("iss", $id, $ip, $ua);
-                        $stmt2->execute();
-                        $stmt2->close();
-
-                        header("Location: StaffPanel/staff_dashboard.php");
-                    }
-                    exit;
-
-                } else {
-                    $error = "Invalid email or password.";
-                }
+            if ($stmt->execute()) {
+                $success = "Staff member added successfully!";
             } else {
-                $error = "Invalid email or password.";
+                $error = "Database error: Could not add staff. Email might already exist.";
             }
-
             $stmt->close();
+        } else {
+            $error = "Internal error: Could not prepare statement.";
         }
     }
 }
@@ -100,44 +62,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $conn->close();
 ?>
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CAdmin Login</title>
-<link rel="stylesheet" href="customer_admin_style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add User</title>
+    <link rel="stylesheet" href="customer_admin_style.css">
 </head>
 <body>
-<main>
-    <div class="form-container">
-        <h2>Login</h2>
 
-        <?php if ($error): ?>
-            <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
-        <?php endif; ?>
+<h2>Add Staff User</h2>
 
-        <form action="" method="POST">
-            <label>Email</label>
-            <input type="email" name="email" required value="<?php echo htmlspecialchars($email); ?>">
+<?php if ($error): ?>
+    <div class="message error"><?php echo htmlspecialchars($error); ?></div>
+<?php elseif ($success): ?>
+    <div class="message success"><?php echo htmlspecialchars($success); ?></div>
+<?php endif; ?>
 
-            <label>Password</label>
-            <input type="password" name="password" required>
+<form method="POST" action="">
+    <label>First Name*</label>
+    <input type="text" name="first_name" required>
 
-            <label>Role</label>
-            <select name="role" required>
-                <option value="">-- Select Role --</option>
-                <option value="Admin" <?php echo ($role === 'Admin') ? 'selected' : ''; ?>>Admin</option>
-                <option value="Staff" <?php echo ($role === 'Staff') ? 'selected' : ''; ?>>Staff</option>
-            </select>
+    <label>Last Name*</label>
+    <input type="text" name="last_name" required>
 
-            <button type="submit" class="btn">Login</button>
-        </form>
+    <label>Email*</label>
+    <input type="email" name="email" required>
 
-        <p class="form-link">
-            Don’t have an account yet? <a href="register.php">Register here</a>
-        </p>
-    </div>
-</main>
+    <label>Password*</label>
+    <input type="password" name="password" required>
+
+    <label>Phone Number</label>
+    <input type="text" name="phone_number">
+
+    <label>Status</label>
+    <select name="status">
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+    </select>
+
+    <button type="submit" class="btn">Add User</button>
+</form>
+
+<a href="dashboard.php">Back to Dashboard</a>
+
 </body>
 </html>

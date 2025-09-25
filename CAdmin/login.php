@@ -8,27 +8,26 @@ $role = '';
 $inactiveMessage = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+    $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
     $password = $_POST['password'] ?? '';
     $role = $_POST['role'] ?? '';
 
     if (empty($email) || empty($password) || empty($role)) {
         $error = "Please fill in all fields.";
     } else {
+        // Determine table and id field based on role
         if (strtolower($role) === 'admin') {
-            // Admin login
             $stmt = $conn->prepare("SELECT admin_id, password_hash, first_name, last_name, status, company_id 
-                                    FROM company_admins 
-                                    WHERE email = ? LIMIT 1");
+                                    FROM company_admins WHERE email = ? LIMIT 1");
+            $idField = 'admin_id';
         } else {
-            // Staff login
             $stmt = $conn->prepare("SELECT staff_id, password_hash, first_name, last_name, status, company_id, must_change_password 
-                                    FROM company_staff 
-                                    WHERE email = ? LIMIT 1");
+                                    FROM company_staff WHERE email = ? LIMIT 1");
+            $idField = 'staff_id';
         }
 
         if (!$stmt) {
-            die("Database prepare failed: (" . $conn->errno . ") " . $conn->error);
+            die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
         }
 
         $stmt->bind_param("s", $email);
@@ -47,13 +46,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($status !== 'active') {
                 $inactiveMessage = "Your account is inactive. Please wait for activation.";
             } elseif (password_verify($password, $hash)) {
-                session_regenerate_id(true);
+                session_regenerate_id(true); // prevent session fixation
 
-                $_SESSION['UserID'] = $id;
-                $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
+                // Set session variables
+                if (strtolower($role) === 'admin') {
+                    $_SESSION['CAdminID'] = $id;
+                    $_SESSION['CAdminName'] = trim($firstName . ' ' . $lastName);
+                    $_SESSION['CompanyID'] = $companyId; // ✅ add this
+                } else {
+                    $_SESSION['UserID'] = $id;
+                    $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
+                    $_SESSION['CompanyID'] = $companyId;
+                }
+
+
                 $_SESSION['Role'] = $role;
                 $_SESSION['Email'] = $email;
-                $_SESSION['CompanyID'] = $companyId;
 
                 // Staff first-time login check
                 if (strtolower($role) === 'staff' && $mustChange == 1) {
@@ -102,7 +110,7 @@ $conn->close();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Company Login</title>
+<title>CAdmin Login</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

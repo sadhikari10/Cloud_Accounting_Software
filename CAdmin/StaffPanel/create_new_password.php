@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $updateStmt->bind_param("si", $newHash, $staffId);
                         if ($updateStmt->execute()) {
                             $success = "Password updated successfully. Redirecting to login...";
-                            header("refresh:3;url=login.php");
+                            header("refresh:3;url=../login.php");
                         } else {
                             $error = "Failed to update password.";
                         }

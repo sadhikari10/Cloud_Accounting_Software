@@ -3,7 +3,7 @@ session_start();
 require '../../Common/connection.php';
 
 // Check if admin is logged in
-if (!isset($_SESSION['UserID']) || strtolower($_SESSION['Role']) !== 'admin') {
+if (!isset($_SESSION['CAdminID']) || strtolower($_SESSION['Role']) !== 'admin') {
     header("Location: login.php");
     exit;
 }
@@ -14,7 +14,9 @@ $companyId = $_SESSION['CompanyID'] ?? 0;
 $stmt = $conn->prepare("SELECT staff_id, first_name, last_name, email, phone_number, role, status 
                         FROM company_staff 
                         WHERE company_id = ?");
-if (!$stmt) die("Prepare failed: " . $conn->error);
+if (!$stmt) {
+    die("Prepare failed: " . $conn->error);
+}
 
 $stmt->bind_param("i", $companyId);
 $stmt->execute();
@@ -48,7 +50,7 @@ $conn->close();
         </tr>
     </thead>
     <tbody>
-        <?php if ($usersResult->num_rows > 0): ?>
+        <?php if ($usersResult && $usersResult->num_rows > 0): ?>
             <?php while ($user = $usersResult->fetch_assoc()): ?>
             <tr>
                 <td><?php echo $user['staff_id']; ?></td>
