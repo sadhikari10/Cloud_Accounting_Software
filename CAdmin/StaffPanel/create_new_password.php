@@ -93,7 +93,7 @@ $conn->close();
             <button type="submit" class="btn">Update Password</button>
         </form>
 
-        <a href="login.php" class="btn logout-btn">Back to Login</a>
+        <a href="../login.php" class="btn logout-btn">Back to Login</a>
     </div>
 </main>
 </body>

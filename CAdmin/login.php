@@ -15,90 +15,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password) || empty($role)) {
         $error = "Please fill in all fields.";
     } else {
-        // Determine table based on role
         if (strtolower($role) === 'admin') {
-            $table = 'company_admins';
-            $idField = 'admin_id';
+            // Admin login
+            $stmt = $conn->prepare("SELECT admin_id, password_hash, first_name, last_name, status, company_id 
+                                    FROM company_admins 
+                                    WHERE email = ? LIMIT 1");
         } else {
-            $table = 'company_staff';
-            $idField = 'staff_id';
+            // Staff login
+            $stmt = $conn->prepare("SELECT staff_id, password_hash, first_name, last_name, status, company_id, must_change_password 
+                                    FROM company_staff 
+                                    WHERE email = ? LIMIT 1");
         }
 
-        // Prepare secure statement
-        $stmt = $conn->prepare("SELECT $idField, password_hash, first_name, last_name, status, company_id, must_change_password 
-                                FROM $table 
-                                WHERE email = ? LIMIT 1");
-
         if (!$stmt) {
-            $error = "Internal error: Unable to process login. Please try again later.";
-        } else {
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $stmt->store_result();
+            die("Database prepare failed: (" . $conn->errno . ") " . $conn->error);
+        }
 
-            if ($stmt->num_rows > 0) {
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $stmt->store_result();
+
+        if ($stmt->num_rows > 0) {
+            if (strtolower($role) === 'admin') {
+                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $companyId);
+            } else {
                 $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $companyId, $mustChange);
-                $stmt->fetch();
+            }
 
-                if ($status !== 'active') {
-                    $inactiveMessage = "Your account is inactive. Please wait for activation.";
-                } elseif (password_verify($password, $hash)) {
-                    session_regenerate_id(true); // prevent session fixation
+            $stmt->fetch();
 
-                    // Set session variables
-                    $_SESSION['UserID'] = $id;
-                    $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
-                    $_SESSION['Role'] = $role;
-                    $_SESSION['Email'] = $email;
-                    $_SESSION['CompanyID'] = $companyId;
+            if ($status !== 'active') {
+                $inactiveMessage = "Your account is inactive. Please wait for activation.";
+            } elseif (password_verify($password, $hash)) {
+                session_regenerate_id(true);
 
-                    // Staff first-time login check
-                    if (strtolower($role) === 'staff' && $mustChange == 1) {
-                        header("Location: StaffPanel/create_new_password.php");
-                        exit;
-                    }
+                $_SESSION['UserID'] = $id;
+                $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
+                $_SESSION['Role'] = $role;
+                $_SESSION['Email'] = $email;
+                $_SESSION['CompanyID'] = $companyId;
 
-                    // Record login in company_user_login_history
-                    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-                    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
-
-                    $adminId = null;
-                    $staffId = null;
-
-                    if (strtolower($role) === 'admin') {
-                        $adminId = $id;
-                    } else {
-                        $staffId = $id;
-                    }
-
-                    $historyStmt = $conn->prepare("
-                        INSERT INTO company_user_login_history 
-                        (admin_id, staff_id, company_id, login_at, ip_address, user_agent) 
-                        VALUES (?, ?, ?, NOW(), ?, ?)
-                    ");
-
-                    if ($historyStmt) {
-                        $historyStmt->bind_param("iiiss", $adminId, $staffId, $companyId, $ip, $userAgent);
-                        $historyStmt->execute();
-                        $historyStmt->close();
-                    }
-
-                    // Redirect based on role
-                    if (strtolower($role) === 'admin') {
-                        header("Location: AdminPanel/dashboard.php");
-                    } else {
-                        header("Location: StaffPanel/staff_dashboard.php");
-                    }
+                // Staff first-time login check
+                if (strtolower($role) === 'staff' && $mustChange == 1) {
+                    header("Location: StaffPanel/create_new_password.php");
                     exit;
-                } else {
-                    $error = "Invalid email or password.";
                 }
+
+                // Record login history
+                $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+                $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+                $adminId = (strtolower($role) === 'admin') ? $id : null;
+                $staffId = (strtolower($role) === 'staff') ? $id : null;
+
+                $historyStmt = $conn->prepare("INSERT INTO company_user_login_history 
+                                               (admin_id, staff_id, company_id, login_at, ip_address, user_agent)
+                                               VALUES (?, ?, ?, NOW(), ?, ?)");
+                if ($historyStmt) {
+                    $historyStmt->bind_param("iiiss", $adminId, $staffId, $companyId, $ip, $userAgent);
+                    $historyStmt->execute();
+                    $historyStmt->close();
+                }
+
+                // Redirect to dashboard
+                if (strtolower($role) === 'admin') {
+                    header("Location: AdminPanel/dashboard.php");
+                } else {
+                    header("Location: StaffPanel/staff_dashboard.php");
+                }
+                exit;
             } else {
                 $error = "Invalid email or password.";
             }
-
-            $stmt->close();
+        } else {
+            $error = "Invalid email or password.";
         }
+
+        $stmt->close();
     }
 }
 
@@ -110,7 +102,7 @@ $conn->close();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CAdmin Login</title>
+<title>Company Login</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
