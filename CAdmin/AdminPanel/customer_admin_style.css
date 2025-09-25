@@ -58,3 +58,32 @@ input, select, button {
     background-color: #dff0d8;
     color: #3c763d;
 }
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+th {
+    background-color: #f4f4f4;
+}
+
+/* Details button */
+.details-btn {
+    background-color: #5bc0de;
+    color: white;
+    padding: 5px 10px;
+    text-decoration: none;
+    border-radius: 3px;
+}
+
+.details-btn:hover {
+    background-color: #31b0d5;
+}
