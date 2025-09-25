@@ -1,0 +1,41 @@
+/* staff_style.css */
+
+/* General page styles */
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #0275d8;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    margin: 5px 0;
+    border: none;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-color: #025aa5;
+}
+
+.logout-btn {
+    background-color: #d9534f;
+}
+
+.logout-btn:hover {
+    background-color: #c9302c;
+}
+
+/* Messages */
+h1 {
+    margin-bottom: 20px;
+}
+
+p {
+    font-size: 1.1em;
+}
