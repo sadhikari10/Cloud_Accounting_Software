@@ -15,34 +15,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password) || empty($role)) {
         $error = "Please fill in all fields.";
     } else {
-        // Prepare statement with correct column names
-        $stmt = $conn->prepare("SELECT admin_id, password_hash, first_name, last_name, status, role 
-                                FROM company_admins 
-                                WHERE email = ? AND role = ?");
+        // Determine table based on role
+        if (strtolower($role) === 'admin') {
+            $table = 'company_admins';
+            $idField = 'admin_id';
+        } else {
+            $table = 'company_staff';
+            $idField = 'staff_id';
+        }
 
+        // Prepare secure statement
+        $stmt = $conn->prepare("SELECT $idField, password_hash, first_name, last_name, status, company_id 
+                                FROM $table 
+                                WHERE email = ? LIMIT 1");
         if (!$stmt) {
             $error = "Internal error: Unable to process login. Please try again later.";
         } else {
-            $stmt->bind_param("ss", $email, $role);
+            $stmt->bind_param("s", $email);
             $stmt->execute();
             $stmt->store_result();
 
             if ($stmt->num_rows > 0) {
-                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $dbRole);
+                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $companyId);
                 $stmt->fetch();
 
                 if ($status !== 'active') {
                     $inactiveMessage = "Your account is inactive. Please wait for activation.";
                 } elseif (password_verify($password, $hash)) {
                     // Successful login
-                    $_SESSION['CAdminID'] = $id;
-                    $_SESSION['CAdminName'] = trim($firstName . ' ' . $lastName);
-                    $_SESSION['Role'] = $dbRole;
+                    session_regenerate_id(true); // prevent session fixation
+
+                    // Set session variables
+                    $_SESSION['UserID'] = $id;
+                    $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
+                    $_SESSION['Role'] = $role;
                     $_SESSION['Email'] = $email;
-                    session_regenerate_id(true);
+                    $_SESSION['CompanyID'] = $companyId;
+
+                    // Record login in company_user_login_history
+                    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+                    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+
+                    $adminId = null;
+                    $staffId = null;
+
+                    if (strtolower($role) === 'admin') {
+                        $adminId = $id;
+                    } else {
+                        $staffId = $id;
+                    }
+
+                    $historyStmt = $conn->prepare("
+                        INSERT INTO company_user_login_history 
+                        (admin_id, staff_id, company_id, login_at, ip_address, user_agent) 
+                        VALUES (?, ?, ?, NOW(), ?, ?)
+                    ");
+
+                    if ($historyStmt) {
+                        $historyStmt->bind_param("iiiss", $adminId, $staffId, $companyId, $ip, $userAgent);
+                        $historyStmt->execute();
+                        $historyStmt->close();
+                    }
 
                     // Redirect based on role
-                    if (strtolower($dbRole) === 'admin') {
+                    if (strtolower($role) === 'admin') {
                         header("Location: AdminPanel/dashboard.php");
                     } else {
                         header("Location: StaffPanel/staff_dashboard.php");
@@ -54,10 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $error = "Invalid email or password.";
             }
+
             $stmt->close();
         }
     }
 }
+
 $conn->close();
 ?>
 
