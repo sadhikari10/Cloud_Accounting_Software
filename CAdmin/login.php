@@ -25,9 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Prepare secure statement
-        $stmt = $conn->prepare("SELECT $idField, password_hash, first_name, last_name, status, company_id 
+        $stmt = $conn->prepare("SELECT $idField, password_hash, first_name, last_name, status, company_id, must_change_password 
                                 FROM $table 
                                 WHERE email = ? LIMIT 1");
+
         if (!$stmt) {
             $error = "Internal error: Unable to process login. Please try again later.";
         } else {
@@ -36,13 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->store_result();
 
             if ($stmt->num_rows > 0) {
-                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $companyId);
+                $stmt->bind_result($id, $hash, $firstName, $lastName, $status, $companyId, $mustChange);
                 $stmt->fetch();
 
                 if ($status !== 'active') {
                     $inactiveMessage = "Your account is inactive. Please wait for activation.";
                 } elseif (password_verify($password, $hash)) {
-                    // Successful login
                     session_regenerate_id(true); // prevent session fixation
 
                     // Set session variables
@@ -51,6 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['Role'] = $role;
                     $_SESSION['Email'] = $email;
                     $_SESSION['CompanyID'] = $companyId;
+
+                    // Staff first-time login check
+                    if (strtolower($role) === 'staff' && $mustChange == 1) {
+                        header("Location: StaffPanel/create_new_password.php");
+                        exit;
+                    }
 
                     // Record login in company_user_login_history
                     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
