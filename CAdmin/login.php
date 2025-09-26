@@ -52,13 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (strtolower($role) === 'admin') {
                     $_SESSION['CAdminID'] = $id;
                     $_SESSION['CAdminName'] = trim($firstName . ' ' . $lastName);
-                    $_SESSION['CompanyID'] = $companyId; // ✅ add this
+                    $_SESSION['CompanyID'] = $companyId;
                 } else {
                     $_SESSION['UserID'] = $id;
                     $_SESSION['UserName'] = trim($firstName . ' ' . $lastName);
                     $_SESSION['CompanyID'] = $companyId;
                 }
-
 
                 $_SESSION['Role'] = $role;
                 $_SESSION['Email'] = $email;
@@ -75,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $adminId = (strtolower($role) === 'admin') ? $id : null;
                 $staffId = (strtolower($role) === 'staff') ? $id : null;
 
+                // Insert into login history
                 $historyStmt = $conn->prepare("INSERT INTO company_user_login_history 
                                                (admin_id, staff_id, company_id, login_at, ip_address, user_agent)
                                                VALUES (?, ?, ?, NOW(), ?, ?)");
@@ -82,6 +82,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $historyStmt->bind_param("iiiss", $adminId, $staffId, $companyId, $ip, $userAgent);
                     $historyStmt->execute();
                     $historyStmt->close();
+                }
+
+                // Update last login in main table
+                if (strtolower($role) === 'admin') {
+                    $updateStmt = $conn->prepare("UPDATE company_admins SET last_login_at = NOW() WHERE admin_id = ?");
+                    if ($updateStmt) {
+                        $updateStmt->bind_param("i", $id);
+                        $updateStmt->execute();
+                        $updateStmt->close();
+                    }
+                } else {
+                    $updateStmt = $conn->prepare("UPDATE company_staff SET 
+                                                    last_login_at = NOW(), 
+                                                    last_login_ip = ?, 
+                                                    last_login_user_agent = ? 
+                                                  WHERE staff_id = ?");
+                    if ($updateStmt) {
+                        $updateStmt->bind_param("ssi", $ip, $userAgent, $id);
+                        $updateStmt->execute();
+                        $updateStmt->close();
+                    }
                 }
 
                 // Redirect to dashboard
