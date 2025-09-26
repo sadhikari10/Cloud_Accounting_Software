@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['status'])) {
 }
 
 // Fetch staff details
-$stmt = $conn->prepare("SELECT first_name, last_name, email, phone_number, status, role, created_at 
+$stmt = $conn->prepare("SELECT first_name, last_name, email, phone_number, status, role, created_at, must_change_password 
                         FROM company_staff WHERE staff_id = ?");
 if (!$stmt) die("Prepare failed: " . $conn->error);
 $stmt->bind_param("i", $staffId);
@@ -32,6 +32,9 @@ $staff = $staffResult->fetch_assoc();
 $stmt->close();
 
 if (!$staff) die("Staff not found.");
+
+// Determine password status
+$passwordStatus = $staff['must_change_password'] == 1 ? 'Pending Change' : 'Updated';
 
 // Fetch login history
 $stmt = $conn->prepare("SELECT LoginID, login_at, ip_address, user_agent 
@@ -63,6 +66,7 @@ $conn->close();
 <p><strong>Email:</strong> <?php echo htmlspecialchars($staff['email']); ?></p>
 <p><strong>Phone:</strong> <?php echo htmlspecialchars($staff['phone_number']); ?></p>
 <p><strong>Role:</strong> <?php echo htmlspecialchars($staff['role']); ?></p>
+<p><strong>Password Status:</strong> <?php echo $passwordStatus; ?></p>
 <p><strong>Created At:</strong> <?php echo $staff['created_at']; ?></p>
 
 <p><strong>Current Status:</strong> <?php echo htmlspecialchars($staff['status']); ?></p>
@@ -80,7 +84,6 @@ $conn->close();
 <table>
     <thead>
         <tr>
-            <!-- <th>Login ID</th> -->
             <th>Date & Time</th>
             <th>IP Address</th>
             <th>User Agent</th>
@@ -90,7 +93,6 @@ $conn->close();
         <?php if ($loginHistory->num_rows > 0): ?>
             <?php while ($login = $loginHistory->fetch_assoc()): ?>
             <tr>
-                <!-- <td><?php echo $login['LoginID']; ?></td> -->
                 <td><?php echo $login['login_at']; ?></td>
                 <td><?php echo htmlspecialchars($login['ip_address']); ?></td>
                 <td><?php echo htmlspecialchars($login['user_agent']); ?></td>
@@ -98,7 +100,7 @@ $conn->close();
             <?php endwhile; ?>
         <?php else: ?>
             <tr>
-                <td colspan="4">No login history available.</td>
+                <td colspan="3">No login history available.</td>
             </tr>
         <?php endif; ?>
     </tbody>
