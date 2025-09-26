@@ -3,7 +3,7 @@ session_start();
 require '../../Common/connection.php';
 
 // Check if admin is logged in
-if (!isset($_SESSION['UserID']) || strtolower($_SESSION['Role']) !== 'admin') {
+if (!isset($_SESSION['CAdminID']) || strtolower($_SESSION['Role']) !== 'admin') {
     header("Location: ../login.php");
     exit;
 }
