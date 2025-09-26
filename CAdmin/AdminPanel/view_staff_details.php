@@ -57,7 +57,7 @@ $conn->close();
 </head>
 <body>
 <h2>Staff Details</h2>
-<a href="view_users.php" class="btn">Back to Users List</a>
+<a href="staff_management.php" class="btn">Back to Users List</a>
 
 <p><strong>Full Name:</strong> <?php echo htmlspecialchars($staff['first_name'] . ' ' . $staff['last_name']); ?></p>
 <p><strong>Email:</strong> <?php echo htmlspecialchars($staff['email']); ?></p>

@@ -121,12 +121,14 @@ $conn->close();
                 </div>
             </div>
 
-            <!-- Add User Button -->
-            <a href="add_user.php" class="btn">Add User</a>
+           
+            <!-- Staff Management Button -->
+            <a href="staff_management.php" class="btn">Staff Management</a>
+            
+            <!-- Company Management Button -->
+            <a href="company_management.php" class="btn">Company Management</a>
 
-            <!-- View Users Button -->
-            <a href="view_users.php" class="btn">View Users</a>
-        <?php else: ?>
+            <?php else: ?>
             <p>You are logged in as Staff.</p>
         <?php endif; ?>
 
