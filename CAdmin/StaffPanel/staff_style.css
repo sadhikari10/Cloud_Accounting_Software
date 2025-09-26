@@ -51,7 +51,7 @@ select:focus {
 /* Buttons */
 .btn {
     display: block;
-    width: 100%;
+    width: 150px;
     padding: 12px;
     background-color: #0275d8;
     color: white;
