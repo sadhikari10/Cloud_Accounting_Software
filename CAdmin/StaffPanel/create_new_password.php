@@ -2,6 +2,11 @@
 session_start();
 require '../../Common/connection.php';
 
+if (!isset($_SESSION['UserID']) || !isset($_SESSION['CompanyID'])) {
+    header("Location: ../login.php");
+    exit();
+}
+
 $error = '';
 $success = '';
 

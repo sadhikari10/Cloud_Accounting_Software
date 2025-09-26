@@ -3,7 +3,7 @@ session_start();
 
 // Check if user is logged in (Admin or Staff)
 if (!isset($_SESSION['UserID']) && !isset($_SESSION['CAdminID'])) {
-    header("Location: login.php");
+    header("Location: ../login.php");
     exit;
 }
 

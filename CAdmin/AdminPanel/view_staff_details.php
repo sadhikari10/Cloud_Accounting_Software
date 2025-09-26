@@ -4,7 +4,7 @@ require '../../Common/connection.php';
 
 // Check if admin is logged in
 if (!isset($_SESSION['UserID']) || strtolower($_SESSION['Role']) !== 'admin') {
-    header("Location: login.php");
+    header("Location: ../login.php");
     exit;
 }
 

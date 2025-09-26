@@ -3,7 +3,7 @@ session_start();
 
 // Check if staff is logged in
 if (!isset($_SESSION['UserID']) || strtolower($_SESSION['Role']) !== 'staff') {
-    header("Location: login.php");
+    header("Location: ../login.php");
     exit;
 }
 ?>
