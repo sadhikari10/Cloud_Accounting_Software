@@ -11,20 +11,18 @@ if (!isset($_SESSION['CAdminID']) || strtolower($_SESSION['Role']) !== 'admin') 
 $staffId = intval($_GET['id'] ?? 0);
 if ($staffId <= 0) die("Invalid staff ID.");
 
-// Handle status change
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['status'])) {
+// ----------------- Handle Status Update ------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['status_form'])) {
     $newStatus = $_POST['status'] === 'active' ? 'active' : 'inactive';
     $stmt = $conn->prepare("UPDATE company_staff SET status = ? WHERE staff_id = ?");
-    if (!$stmt) die("Prepare failed: " . $conn->error);
     $stmt->bind_param("si", $newStatus, $staffId);
     $stmt->execute();
     $stmt->close();
 }
 
-// Fetch staff details
+// ----------------- Fetch Staff Details ------------------
 $stmt = $conn->prepare("SELECT first_name, last_name, email, phone_number, status, role, created_at, must_change_password 
                         FROM company_staff WHERE staff_id = ?");
-if (!$stmt) die("Prepare failed: " . $conn->error);
 $stmt->bind_param("i", $staffId);
 $stmt->execute();
 $staffResult = $stmt->get_result();
@@ -36,16 +34,65 @@ if (!$staff) die("Staff not found.");
 // Determine password status
 $passwordStatus = $staff['must_change_password'] == 1 ? 'Pending Change' : 'Updated';
 
-// Fetch login history
+// ----------------- Fetch Login History ------------------
 $stmt = $conn->prepare("SELECT LoginID, login_at, ip_address, user_agent 
                         FROM company_user_login_history 
                         WHERE staff_id = ? 
                         ORDER BY login_at DESC");
-if (!$stmt) die("Prepare failed: " . $conn->error);
 $stmt->bind_param("i", $staffId);
 $stmt->execute();
 $loginHistory = $stmt->get_result();
 $stmt->close();
+
+// ----------------- Permission Handling ------------------
+$modules = [
+    "customers" => ["view", "create", "edit", "delete"],
+    "inventory" => ["view", "create", "edit", "delete"],
+    "balance" => ["view", "add"],
+    "invoices" => ["view", "create", "edit", "delete"]
+];
+
+// Fetch current permissions for this staff
+$stmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id = ? AND company_id = ?");
+$stmt->bind_param("ii", $staffId, $_SESSION['CompanyID']);
+$stmt->execute();
+$result = $stmt->get_result();
+$currentPermissions = [];
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $currentPermissions = json_decode($row['permissions'], true);
+}
+$stmt->close();
+
+// Handle permissions update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['permissions_form'])) {
+    $permissionsJson = json_encode($_POST['permissions']);
+    
+    // Check if record exists
+    $stmt = $conn->prepare("SELECT permission_id FROM user_permissions WHERE user_id = ? AND company_id = ?");
+    $stmt->bind_param("ii", $staffId, $_SESSION['CompanyID']);
+    $stmt->execute();
+    $stmt->store_result();
+
+    if ($stmt->num_rows > 0) {
+        // Update existing
+        $stmt->close();
+        $stmt = $conn->prepare("UPDATE user_permissions SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND company_id = ?");
+        $stmt->bind_param("sii", $permissionsJson, $staffId, $_SESSION['CompanyID']);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        // Insert new
+        $stmt->close();
+        $stmt = $conn->prepare("INSERT INTO user_permissions (user_id, company_id, permissions) VALUES (?, ?, ?)");
+        $stmt->bind_param("iis", $staffId, $_SESSION['CompanyID'], $permissionsJson);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    $currentPermissions = $_POST['permissions']; // update current for display
+    $permissionMessage = "Permissions updated successfully.";
+}
 
 $conn->close();
 ?>
@@ -57,6 +104,14 @@ $conn->close();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Staff Details</title>
 <link rel="stylesheet" href="customer_admin_style.css">
+<style>
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f2f2f2; }
+    fieldset { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    legend { font-weight: bold; }
+    label { margin-right: 10px; }
+</style>
 </head>
 <body>
 <h2>Staff Details</h2>
@@ -68,10 +123,11 @@ $conn->close();
 <p><strong>Role:</strong> <?php echo htmlspecialchars($staff['role']); ?></p>
 <p><strong>Password Status:</strong> <?php echo $passwordStatus; ?></p>
 <p><strong>Created At:</strong> <?php echo $staff['created_at']; ?></p>
-
 <p><strong>Current Status:</strong> <?php echo htmlspecialchars($staff['status']); ?></p>
 
+<!-- Status Update Form -->
 <form method="POST" style="margin-top:10px;">
+    <input type="hidden" name="status_form" value="1">
     <label>Change Status:</label>
     <select name="status">
         <option value="active" <?php echo $staff['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
@@ -105,5 +161,25 @@ $conn->close();
         <?php endif; ?>
     </tbody>
 </table>
+
+<h3>Assign Permissions</h3>
+<?php if (isset($permissionMessage)) echo "<p style='color:green;'>$permissionMessage</p>"; ?>
+<form method="POST">
+    <input type="hidden" name="permissions_form" value="1">
+    <?php foreach ($modules as $module => $actions): ?>
+        <fieldset>
+            <legend><?php echo ucfirst($module); ?></legend>
+            <?php foreach ($actions as $action): ?>
+                <label>
+                    <input type="checkbox" name="permissions[<?php echo $module; ?>][]" value="<?php echo $action; ?>"
+                        <?php echo (isset($currentPermissions[$module]) && in_array($action, $currentPermissions[$module])) ? 'checked' : ''; ?>>
+                    <?php echo ucfirst($action); ?>
+                </label>
+            <?php endforeach; ?>
+        </fieldset>
+    <?php endforeach; ?>
+    <button type="submit" class="btn">Save Permissions</button>
+</form>
+
 </body>
 </html>
