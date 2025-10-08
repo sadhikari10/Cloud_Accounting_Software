@@ -64,10 +64,15 @@ if ($result->num_rows > 0) {
 }
 $stmt->close();
 
-// Handle permissions update
+// ----------------- Handle Permissions Update ------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['permissions_form'])) {
-    $permissionsJson = json_encode($_POST['permissions']);
-    
+    // If no permissions selected, set empty array
+    $submittedPermissions = isset($_POST['permissions']) && is_array($_POST['permissions'])
+        ? $_POST['permissions']
+        : [];
+
+    $permissionsJson = json_encode($submittedPermissions);
+
     // Check if record exists
     $stmt = $conn->prepare("SELECT permission_id FROM user_permissions WHERE user_id = ? AND company_id = ?");
     $stmt->bind_param("ii", $staffId, $_SESSION['CompanyID']);
@@ -75,22 +80,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['permissions_form'])) 
     $stmt->store_result();
 
     if ($stmt->num_rows > 0) {
-        // Update existing
+        // Update existing record
         $stmt->close();
-        $stmt = $conn->prepare("UPDATE user_permissions SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND company_id = ?");
+        $stmt = $conn->prepare("UPDATE user_permissions 
+                                SET permissions = ?, updated_at = CURRENT_TIMESTAMP 
+                                WHERE user_id = ? AND company_id = ?");
         $stmt->bind_param("sii", $permissionsJson, $staffId, $_SESSION['CompanyID']);
         $stmt->execute();
         $stmt->close();
     } else {
-        // Insert new
+        // Insert new record
         $stmt->close();
-        $stmt = $conn->prepare("INSERT INTO user_permissions (user_id, company_id, permissions) VALUES (?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO user_permissions (user_id, company_id, permissions) 
+                                VALUES (?, ?, ?)");
         $stmt->bind_param("iis", $staffId, $_SESSION['CompanyID'], $permissionsJson);
         $stmt->execute();
         $stmt->close();
     }
 
-    $currentPermissions = $_POST['permissions']; // update current for display
+    $currentPermissions = $submittedPermissions; // keep updated for UI
     $permissionMessage = "Permissions updated successfully.";
 }
 
@@ -111,6 +119,16 @@ $conn->close();
     fieldset { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
     legend { font-weight: bold; }
     label { margin-right: 10px; }
+    .btn {
+        background: #007bff;
+        color: #fff;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn:hover { background: #0056b3; }
 </style>
 </head>
 <body>
