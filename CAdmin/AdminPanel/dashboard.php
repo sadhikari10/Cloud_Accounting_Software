@@ -131,6 +131,9 @@ $conn->close();
             <?php else: ?>
             <p>You are logged in as Staff.</p>
         <?php endif; ?>
+        
+        <!-- View Admin Login History Button -->
+        <a href="admin_login_history.php" class="btn">View Admin Login History</a>
 
         <!-- Logout -->
         <a href="../logout.php" class="btn logout-btn">Logout</a>
