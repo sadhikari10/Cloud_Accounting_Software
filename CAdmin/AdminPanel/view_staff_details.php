@@ -70,9 +70,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['permissions_form'])) 
         }
     }
 
-    // Update database
+    // Convert to JSON for storage
     $permissionsJson = json_encode($finalPermissions);
+    $oldPermissionsJson = json_encode($currentPermissions); // store old for history
 
+    // ----------------- Insert into user_permission_history ------------------
+    $historyStmt = $conn->prepare("INSERT INTO user_permission_history 
+                                   (admin_id, staff_id, company_id, old_permissions, new_permissions, changed_at) 
+                                   VALUES (?, ?, ?, ?, ?, NOW())");
+    if ($historyStmt) {
+        $historyStmt->bind_param("iiiss", $_SESSION['CAdminID'], $staffId, $_SESSION['CompanyID'], $oldPermissionsJson, $permissionsJson);
+        $historyStmt->execute();
+        $historyStmt->close();
+    }
+
+    // Update current permissions in main table
     $stmt = $conn->prepare("UPDATE user_permissions SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND company_id = ?");
     $stmt->bind_param("sii", $permissionsJson, $staffId, $_SESSION['CompanyID']);
     $stmt->execute();
@@ -133,6 +145,10 @@ $conn->close();
     </select>
     <button type="submit" class="btn">Update Status</button>
 </form>
+<!-- Permission History Button -->
+<a href="view_permission_history.php?staff_id=<?php echo $staffId; ?>" class="btn">
+    View Permission History
+</a>
 
 <h3>Login History</h3>
 <table>
