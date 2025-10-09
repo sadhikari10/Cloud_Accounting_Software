@@ -159,19 +159,19 @@
 
         <!-- Javascript logic to hide and show the password when clicked on the eye icon -->
         <script>
-        const toggles = document.querySelectorAll('.toggle-password');
-        toggles.forEach(toggle => {
-            toggle.addEventListener('click', function() {
-                const input = document.querySelector(this.getAttribute('toggle'));
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    this.classList.replace('fa-eye', 'fa-eye-slash');
-                } else {
-                    input.type = 'password';
-                    this.classList.replace('fa-eye-slash', 'fa-eye');
-                }
+            const toggles = document.querySelectorAll('.toggle-password');
+            toggles.forEach(toggle => {
+                toggle.addEventListener('click', function() {
+                    const input = document.querySelector(this.getAttribute('toggle'));
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        this.classList.replace('fa-eye', 'fa-eye-slash');
+                    } else {
+                        input.type = 'password';
+                        this.classList.replace('fa-eye-slash', 'fa-eye');
+                    }
+                });
             });
-        });
         </script>
     </body>
 </html>
