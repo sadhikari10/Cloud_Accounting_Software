@@ -5,12 +5,13 @@ require '../../Common/connection.php';
 $error = '';
 $success = '';
 
-// ✅ Check if admin is logged in
+// ------------------ Check Admin Session ------------------
 if (!isset($_SESSION['CAdminID']) || !isset($_SESSION['CompanyID'])) {
     header("Location: ../login.php");
     exit;
 }
 
+// ------------------ Handle Form Submission ------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $firstName = trim($_POST['first_name'] ?? '');
     $lastName = trim($_POST['last_name'] ?? '');
@@ -28,12 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $tempPasswordExpires = date('Y-m-d H:i:s', strtotime('+7 days'));
 
+        // ------------------ Insert Staff ------------------
         $stmt = $conn->prepare("INSERT INTO company_staff 
             (company_id, email, password_hash, first_name, last_name, phone_number, status, role, must_change_password, temp_password_expires_at, created_by, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'Staff', 1, ?, ?, NOW(), NOW())");
 
         if ($stmt) {
-            // ✅ FIX: 9 placeholders = 9 types
             $stmt->bind_param(
                 "isssssssi",
                 $companyId,
@@ -48,7 +49,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
 
             if ($stmt->execute()) {
+                // ✅ Staff added successfully
                 $success = "Staff member added successfully!";
+
+                // ------------------ Insert Default Permissions ------------------
+                $staffId = $conn->insert_id;
+
+                // Default customers permission (all false)
+                $defaultPermissions = [
+                    "customers" => [
+                        "view" => false,
+                        "create" => false,
+                        "edit" => false,
+                        "delete" => false
+                    ]
+                ];
+                $permissionsJson = json_encode($defaultPermissions);
+
+                $permStmt = $conn->prepare("INSERT INTO user_permissions (user_id, company_id, permissions, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())");
+                if ($permStmt) {
+                    $permStmt->bind_param("iis", $staffId, $companyId, $permissionsJson);
+                    $permStmt->execute();
+                    $permStmt->close();
+                }
+                // ------------------ End Default Permissions ------------------
+
             } else {
                 $error = "Database error: Could not add staff. Email might already exist.";
             }
@@ -61,7 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $conn->close();
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
