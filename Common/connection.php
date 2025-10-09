@@ -1,3 +1,4 @@
+<!-- connection file that connects the fontend and backend of the code -->
 <?php
 $servername = "localhost";
 $username = "root";
