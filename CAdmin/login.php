@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password) || empty($role)) {
         $error = "Please fill in all fields.";
     } else {
-        // Determine table and id field based on role
+        // Determine table based on role
         if (strtolower($role) === 'admin') {
             $stmt = $conn->prepare("SELECT admin_id, password_hash, first_name, last_name, status, company_id 
                                     FROM company_admins WHERE email = ? LIMIT 1");
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (password_verify($password, $hash)) {
                 session_regenerate_id(true); // prevent session fixation
 
-                // Set session variables
+                // -------------------- Set Session Variables --------------------
                 if (strtolower($role) === 'admin') {
                     $_SESSION['CAdminID'] = $id;
                     $_SESSION['CAdminName'] = trim($firstName . ' ' . $lastName);
@@ -62,19 +62,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['Role'] = $role;
                 $_SESSION['Email'] = $email;
 
-                // Staff first-time login check
+                // -------------------- Load Staff Permissions --------------------
+                if (strtolower($role) === 'staff') {
+                    $permissions = [];
+                    $permStmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id = ? AND company_id = ?");
+                    if ($permStmt) {
+                        $permStmt->bind_param("ii", $id, $companyId);
+                        $permStmt->execute();
+                        $permResult = $permStmt->get_result();
+                        if ($permResult && $permResult->num_rows > 0) {
+                            $row = $permResult->fetch_assoc();
+                            $permissions = json_decode($row['permissions'], true);
+                        }
+                        $_SESSION['Permissions'] = $permissions;
+                        $permStmt->close();
+                    }
+                }
+
+                // -------------------- First-time Staff Login --------------------
                 if (strtolower($role) === 'staff' && $mustChange == 1) {
                     header("Location: StaffPanel/create_new_password.php");
                     exit;
                 }
 
-                // Record login history
+                // -------------------- Record Login History --------------------
                 $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
                 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
                 $adminId = (strtolower($role) === 'admin') ? $id : null;
                 $staffId = (strtolower($role) === 'staff') ? $id : null;
 
-                // Insert into login history
                 $historyStmt = $conn->prepare("INSERT INTO company_user_login_history 
                                                (admin_id, staff_id, company_id, login_at, ip_address, user_agent)
                                                VALUES (?, ?, ?, NOW(), ?, ?)");
@@ -84,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $historyStmt->close();
                 }
 
-                // Update last login in main table
+                // -------------------- Update Last Login --------------------
                 if (strtolower($role) === 'admin') {
                     $updateStmt = $conn->prepare("UPDATE company_admins SET last_login_at = NOW() WHERE admin_id = ?");
                     if ($updateStmt) {
@@ -105,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Redirect to dashboard
+                // -------------------- Redirect to Dashboard --------------------
                 if (strtolower($role) === 'admin') {
                     header("Location: AdminPanel/dashboard.php");
                 } else {

@@ -2,7 +2,7 @@
 session_start();
 require '../../Common/connection.php';
 
-// Check if admin is logged in
+// ------------------ Check if admin is logged in ------------------
 if (!isset($_SESSION['CAdminID']) || strtolower($_SESSION['Role']) !== 'admin') {
     header("Location: ../login.php");
     exit;
@@ -44,20 +44,13 @@ $stmt->execute();
 $loginHistory = $stmt->get_result();
 $stmt->close();
 
-// ----------------- Permission Handling ------------------
-$modules = [
-    "customers" => ["view", "create", "edit", "delete"],
-    "inventory" => ["view", "create", "edit", "delete"],
-    "balance" => ["view", "add"],
-    "invoices" => ["view", "create", "edit", "delete"]
-];
-
-// Fetch current permissions for this staff
+// ----------------- Fetch Permissions from Database ------------------
 $stmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id = ? AND company_id = ?");
 $stmt->bind_param("ii", $staffId, $_SESSION['CompanyID']);
 $stmt->execute();
 $result = $stmt->get_result();
 $currentPermissions = [];
+
 if ($result->num_rows > 0) {
     $row = $result->fetch_assoc();
     $currentPermissions = json_decode($row['permissions'], true);
@@ -66,39 +59,26 @@ $stmt->close();
 
 // ----------------- Handle Permissions Update ------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['permissions_form'])) {
-    // If no permissions selected, set empty array
-    $submittedPermissions = isset($_POST['permissions']) && is_array($_POST['permissions'])
-        ? $_POST['permissions']
-        : [];
+    $submittedPermissions = $_POST['permissions'] ?? [];
 
-    $permissionsJson = json_encode($submittedPermissions);
-
-    // Check if record exists
-    $stmt = $conn->prepare("SELECT permission_id FROM user_permissions WHERE user_id = ? AND company_id = ?");
-    $stmt->bind_param("ii", $staffId, $_SESSION['CompanyID']);
-    $stmt->execute();
-    $stmt->store_result();
-
-    if ($stmt->num_rows > 0) {
-        // Update existing record
-        $stmt->close();
-        $stmt = $conn->prepare("UPDATE user_permissions 
-                                SET permissions = ?, updated_at = CURRENT_TIMESTAMP 
-                                WHERE user_id = ? AND company_id = ?");
-        $stmt->bind_param("sii", $permissionsJson, $staffId, $_SESSION['CompanyID']);
-        $stmt->execute();
-        $stmt->close();
-    } else {
-        // Insert new record
-        $stmt->close();
-        $stmt = $conn->prepare("INSERT INTO user_permissions (user_id, company_id, permissions) 
-                                VALUES (?, ?, ?)");
-        $stmt->bind_param("iis", $staffId, $_SESSION['CompanyID'], $permissionsJson);
-        $stmt->execute();
-        $stmt->close();
+    // Prepare final permissions array based on database keys
+    $finalPermissions = [];
+    foreach ($currentPermissions as $module => $actions) {
+        $finalPermissions[$module] = [];
+        foreach ($actions as $action => $value) {
+            $finalPermissions[$module][$action] = isset($submittedPermissions[$module]) && in_array($action, $submittedPermissions[$module]);
+        }
     }
 
-    $currentPermissions = $submittedPermissions; // keep updated for UI
+    // Update database
+    $permissionsJson = json_encode($finalPermissions);
+
+    $stmt = $conn->prepare("UPDATE user_permissions SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND company_id = ?");
+    $stmt->bind_param("sii", $permissionsJson, $staffId, $_SESSION['CompanyID']);
+    $stmt->execute();
+    $stmt->close();
+
+    $currentPermissions = $finalPermissions;
     $permissionMessage = "Permissions updated successfully.";
 }
 
@@ -184,13 +164,13 @@ $conn->close();
 <?php if (isset($permissionMessage)) echo "<p style='color:green;'>$permissionMessage</p>"; ?>
 <form method="POST">
     <input type="hidden" name="permissions_form" value="1">
-    <?php foreach ($modules as $module => $actions): ?>
+    <?php foreach ($currentPermissions as $module => $actions): ?>
         <fieldset>
             <legend><?php echo ucfirst($module); ?></legend>
-            <?php foreach ($actions as $action): ?>
+            <?php foreach ($actions as $action => $value): ?>
                 <label>
                     <input type="checkbox" name="permissions[<?php echo $module; ?>][]" value="<?php echo $action; ?>"
-                        <?php echo (isset($currentPermissions[$module]) && in_array($action, $currentPermissions[$module])) ? 'checked' : ''; ?>>
+                        <?php echo ($value === true) ? 'checked' : ''; ?>>
                     <?php echo ucfirst($action); ?>
                 </label>
             <?php endforeach; ?>
