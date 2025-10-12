@@ -18,7 +18,7 @@ try {
     die("DB Connection failed: " . $e->getMessage());
 }
 
-// Fetch all COA records (flat list)
+// Fetch all COA records ordered by ID
 $sql = "SELECT 
             id, 
             company_id, 
@@ -33,7 +33,7 @@ $sql = "SELECT
             created_at, 
             updated_at
         FROM chart_of_accounts
-        ORDER BY account_code ASC";
+        ORDER BY id ASC";
 
 $stmt = $pdo->query($sql);
 $accounts = $stmt->fetchAll();

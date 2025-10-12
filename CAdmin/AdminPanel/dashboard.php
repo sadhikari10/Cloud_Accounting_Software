@@ -143,6 +143,12 @@ $conn->close();
         <!-- Company Management Button -->
         <a href="company_management.php" class="btn">Company Management</a>
 
+        <!-- Chart Of Accounts -->
+        <a href="../Common/chart_of_accounts.php" class="btn">Chart Of Accounts</a>
+
+        <!-- Add customers -->
+        <a href="../Common/add_customers.php" class="btn">Add Customers</a>
+
     <?php else: ?>
         <p>You are logged in as Staff.</p>
     <?php endif; ?>
