@@ -1,4 +1,4 @@
-    <?php
+<?php
     session_start();
     require '../../Common/connection.php';
 
@@ -11,109 +11,136 @@
     $staffId = intval($_GET['id'] ?? 0);
     if ($staffId <= 0) die("Invalid staff ID.");
 
-    // ------------------ Handle AJAX Updates ------------------
+    // ------------------ AJAX Handler ------------------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['ajax']) && $_GET['ajax']==='1') {
-        // Ensure no stray output
         ob_clean();
         header('Content-Type: application/json');
-        
-        // Suppress warnings
-        error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
 
-        $data = json_decode(file_get_contents("php://input"), true);
-        if (!$data || !isset($data['type'])) {
-            echo json_encode(['success'=>false,'message'=>'Invalid request.']);
-            exit;
-        }
-
-        $companyId = $_SESSION['CompanyID'];
-        $adminId = $_SESSION['CAdminID'];
-
-        // ---------- STATUS UPDATE ----------
-        if ($data['type']==='status') {
-            $newStatus = $data['status']==='active'?'active':'inactive';
-            $stmt = $conn->prepare("UPDATE company_staff SET status=? WHERE staff_id=?");
-            $stmt->bind_param("si",$newStatus,$staffId);
-            $stmt->execute();
-            $stmt->close();
-            echo json_encode(['success'=>true,'message'=>'Status updated successfully.']);
-            exit;
-        }
-
-        // ---------- PERMISSION UPDATE ----------
-        if ($data['type']==='permission' && isset($data['module'],$data['action'],$data['checked'])) {
-            $module = $data['module'];
-            $action = $data['action'];
-            $checked = (bool)$data['checked'];
-
-            // Fetch current permissions
-            $stmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id=? AND company_id=?");
-            $stmt->bind_param("ii",$staffId,$companyId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $permissions = [];
-            if($result->num_rows>0){
-                $row=$result->fetch_assoc();
-                $permissions=json_decode($row['permissions'],true);
+        try {
+            $data = json_decode(file_get_contents("php://input"), true);
+            if (!$data || !isset($data['type'])) {
+                throw new Exception("Invalid request data.");
             }
-            $stmt->close();
 
-            $oldPermissionsJson = json_encode($permissions);
-            if(!isset($permissions[$module])) $permissions[$module]=[];
-            $permissions[$module][$action]=$checked;
-            $newPermissionsJson = json_encode($permissions);
+            $companyId = $_SESSION['CompanyID'];
+            $adminId = $_SESSION['CAdminID'];
 
-            // Update main table
-            $stmt = $conn->prepare("UPDATE user_permissions SET permissions=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND company_id=?");
-            $stmt->bind_param("sii",$newPermissionsJson,$staffId,$companyId);
-            $stmt->execute();
-            $stmt->close();
+            // --------- STATUS UPDATE ---------
+            if ($data['type'] === 'status') {
+                if (!isset($data['status'])) throw new Exception("Status value missing.");
 
-            // Insert history
-            $stmt = $conn->prepare("INSERT INTO user_permission_history (admin_id, staff_id, company_id, old_permissions, new_permissions, changed_at)
-                VALUES (?,?,?,?,?,NOW())");
-            $stmt->bind_param("iiiss",$adminId,$staffId,$companyId,$oldPermissionsJson,$newPermissionsJson);
-            $stmt->execute();
-            $stmt->close();
+                $newStatus = $data['status'] === 'active' ? 'active' : 'inactive';
+                $stmt = $conn->prepare("UPDATE company_staff SET status=? WHERE staff_id=?");
+                if (!$stmt) throw new Exception("Failed to prepare status update statement.");
+                $stmt->bind_param("si", $newStatus, $staffId);
+                $stmt->execute();
+                $stmt->close();
 
-            echo json_encode(['success'=>true,'message'=>'Permission updated successfully.']);
+                echo json_encode(['success'=>true,'message'=>'Status updated successfully.']);
+                exit;
+            }
+
+            // --------- PERMISSION UPDATE ---------
+            if ($data['type'] === 'permission') {
+                if (!isset($data['module'], $data['action'], $data['checked'])) {
+                    throw new Exception("Incomplete permission data.");
+                }
+
+                $module = $data['module'];
+                $action = $data['action'];
+                $checked = (bool)$data['checked'];
+
+                // Fetch current permissions
+                $stmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id=? AND company_id=?");
+                if (!$stmt) throw new Exception("Failed to prepare permission fetch statement.");
+                $stmt->bind_param("ii", $staffId, $companyId);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $permissions = [];
+                if ($result && $result->num_rows > 0) {
+                    $row = $result->fetch_assoc();
+                    $permissions = json_decode($row['permissions'], true) ?? [];
+                }
+                $stmt->close();
+
+                $oldPermissionsJson = json_encode($permissions);
+                if (!isset($permissions[$module])) $permissions[$module] = [];
+                $permissions[$module][$action] = $checked;
+                $newPermissionsJson = json_encode($permissions);
+
+                // Update main table
+                $stmt = $conn->prepare("UPDATE user_permissions SET permissions=?, updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND company_id=?");
+                if (!$stmt) throw new Exception("Failed to prepare permission update statement.");
+                $stmt->bind_param("sii", $newPermissionsJson, $staffId, $companyId);
+                $stmt->execute();
+                $stmt->close();
+
+                // Insert history
+                $stmt = $conn->prepare("INSERT INTO user_permission_history (admin_id, staff_id, company_id, old_permissions, new_permissions, changed_at)
+                    VALUES (?,?,?,?,?,NOW())");
+                if (!$stmt) throw new Exception("Failed to insert permission history.");
+                $stmt->bind_param("iiiss", $adminId, $staffId, $companyId, $oldPermissionsJson, $newPermissionsJson);
+                $stmt->execute();
+                $stmt->close();
+
+                echo json_encode(['success'=>true,'message'=>'Permission updated successfully.']);
+                exit;
+            }
+
+            throw new Exception("Unknown action type.");
+
+        } catch (Exception $e) {
+            // Log server-side
+            error_log("AJAX Error (staff_id: $staffId): " . $e->getMessage());
+
+            // Return friendly message to user
+            echo json_encode(['success'=>false,'message'=>'An error occurred. Please try again later.']);
             exit;
         }
-
-        echo json_encode(['success'=>false,'message'=>'Unknown action.']);
-        exit;
     }
 
-    // ----------------- Fetch Staff Info ------------------
-    $stmt = $conn->prepare("SELECT first_name, last_name, email, phone_number, status, role, created_at, must_change_password 
-                            FROM company_staff WHERE staff_id=?");
-    $stmt->bind_param("i",$staffId);
-    $stmt->execute();
-    $staff = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if(!$staff) die("Staff not found.");
+    // ----------------- Fetch Staff Info -----------------
+    try {
+        $stmt = $conn->prepare("SELECT first_name, last_name, email, phone_number, status, role, created_at, must_change_password 
+                                FROM company_staff WHERE staff_id=?");
+        if (!$stmt) throw new Exception("Failed to fetch staff info.");
+        $stmt->bind_param("i", $staffId);
+        $stmt->execute();
+        $staff = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$staff) throw new Exception("Staff not found.");
 
-    $passwordStatus = $staff['must_change_password']==1?'Pending Change':'Updated';
+        $passwordStatus = $staff['must_change_password'] == 1 ? 'Pending Change' : 'Updated';
 
-    // ----------------- Fetch Login History ------------------
-    $stmt = $conn->prepare("SELECT LoginID, login_at, ip_address, user_agent FROM company_user_login_history WHERE staff_id=? ORDER BY login_at DESC");
-    $stmt->bind_param("i",$staffId);
-    $stmt->execute();
-    $loginHistory = $stmt->get_result();
-    $stmt->close();
+        // ----------------- Fetch Login History -----------------
+        $stmt = $conn->prepare("SELECT LoginID, login_at, ip_address, user_agent 
+                                FROM company_user_login_history 
+                                WHERE staff_id=? 
+                                ORDER BY login_at DESC");
+        if (!$stmt) throw new Exception("Failed to fetch login history.");
+        $stmt->bind_param("i", $staffId);
+        $stmt->execute();
+        $loginHistory = $stmt->get_result();
+        $stmt->close();
 
-    // ----------------- Fetch Permissions ------------------
-    $stmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id=? AND company_id=?");
-    $stmt->bind_param("ii",$staffId,$_SESSION['CompanyID']);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $currentPermissions = [];
-    if($result->num_rows>0){
-        $row=$result->fetch_assoc();
-        $currentPermissions=json_decode($row['permissions'],true);
+        // ----------------- Fetch Permissions -----------------
+        $stmt = $conn->prepare("SELECT permissions FROM user_permissions WHERE user_id=? AND company_id=?");
+        if (!$stmt) throw new Exception("Failed to fetch permissions.");
+        $stmt->bind_param("ii", $staffId, $_SESSION['CompanyID']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $currentPermissions = [];
+        if ($result && $result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            $currentPermissions = json_decode($row['permissions'], true) ?? [];
+        }
+        $stmt->close();
+        $conn->close();
+
+    } catch (Exception $e) {
+        error_log("Staff Page Error (staff_id: $staffId): " . $e->getMessage());
+        die("An error occurred while loading staff details. Please try again later.");
     }
-    $stmt->close();
-    $conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -127,7 +154,6 @@
             .msg{font-size:14px;margin-top:5px;}
         </style>
     </head>
-
     <body>
         <h2>Staff Details</h2>
         <a href="staff_management.php" class="btn">Back to Users List</a>
@@ -150,9 +176,8 @@
         <h3>Login History</h3>
         <table>
             <thead>
-            <tr><th>Date & Time</th><th>IP Address</th><th>User Agent</th></tr>
+                <tr><th>Date & Time</th><th>IP Address</th><th>User Agent</th></tr>
             </thead>
-
             <tbody>
                 <?php if($loginHistory->num_rows>0): ?>
                     <?php while($login=$loginHistory->fetch_assoc()): ?>
@@ -199,13 +224,8 @@
                         body:JSON.stringify({type:'status',status})
                     });
                     const data=await res.json();
-                    if(data.success){
-                        statusMsg.style.color="green";
-                        statusMsg.textContent="✓ "+data.message;
-                    } else {
-                        statusMsg.style.color="red";
-                        statusMsg.textContent="✗ "+data.message;
-                    }
+                    statusMsg.style.color = data.success ? "green" : "red";
+                    statusMsg.textContent=(data.success?"✓ ":"✗ ") + data.message;
                 }catch(err){
                     statusMsg.style.color="red";
                     statusMsg.textContent="✗ Error: "+err.message;
@@ -227,14 +247,9 @@
                             body:JSON.stringify({type:'permission',module,action,checked})
                         });
                         const data=await res.json();
-                        if(data.success){
-                            permMsg.style.color="green";
-                            permMsg.textContent="✓ "+data.message;
-                        } else {
-                            permMsg.style.color="red";
-                            permMsg.textContent="✗ "+data.message;
-                            e.target.checked=!checked;
-                        }
+                        permMsg.style.color = data.success ? "green" : "red";
+                        permMsg.textContent=(data.success?"✓ ":"✗ ") + data.message;
+                        if(!data.success) e.target.checked=!checked; // rollback on failure
                     }catch(err){
                         permMsg.style.color="red";
                         permMsg.textContent="✗ Error: "+err.message;
