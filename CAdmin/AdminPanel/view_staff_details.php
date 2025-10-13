@@ -152,6 +152,29 @@
         <title>Staff Details & Permissions</title>
         <style>
             .msg{font-size:14px;margin-top:5px;}
+            
+            /* Make checkbox and text inline and closer */
+            .permCheckbox {
+                margin-right: 5px;   /* Space between checkbox and text */
+                vertical-align: middle;
+            }
+
+            label {
+                display: inline-flex; /* Keep checkbox and text on same line */
+                align-items: center;  /* Vertically center checkbox and text */
+                margin-right: 15px;   /* Space between multiple checkboxes */
+                margin-bottom: 5px;   /* Space between rows */
+                cursor: pointer;      /* Makes label clickable */
+            }
+            #statusDropdown {
+                width: auto;           /* Fit content */
+                min-width: 120px;      /* Optional: prevent it from being too small */
+                max-width: 250px;      /* Optional: limit max width */
+                padding: 5px 8px;      /* Some padding for nicer look */
+                font-size: 14px;
+                display: inline-block; /* Prevent stretching */
+            }
+
         </style>
     </head>
     <body>
@@ -172,6 +195,14 @@
             <option value="inactive" <?php echo $staff['status']==='inactive'?'selected':'';?>>Inactive</option>
         </select>
         <div id="statusMsg" class="msg"></div>
+
+        <!-- View Permission History Button -->
+        <p>
+            <a href="view_permission_history.php?staff_id=<?php echo $staffId; ?>" class="btn">
+                View Permission History
+            </a>
+        </p>
+
 
         <h3>Login History</h3>
         <table>
@@ -212,48 +243,56 @@
 
         <script>
             // --- AJAX: Update Status ---
-            const statusDropdown=document.getElementById('statusDropdown');
-            const statusMsg=document.getElementById('statusMsg');
-            statusDropdown.addEventListener('change',async e=>{
-                const status=e.target.value;
-                statusMsg.textContent="Saving...";
-                try{
-                    const res=await fetch(`?id=<?php echo $staffId;?>&ajax=1`,{
-                        method:'POST',
-                        headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({type:'status',status})
+            statusDropdown.addEventListener('change', async e => {
+                const status = e.target.value;
+                statusMsg.textContent = "Saving...";
+                try {
+                    const res = await fetch(`?id=<?php echo $staffId;?>&ajax=1`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'status', status })
                     });
-                    const data=await res.json();
+                    const data = await res.json();
                     statusMsg.style.color = data.success ? "green" : "red";
-                    statusMsg.textContent=(data.success?"✓ ":"✗ ") + data.message;
-                }catch(err){
-                    statusMsg.style.color="red";
-                    statusMsg.textContent="✗ Error: "+err.message;
+                    statusMsg.textContent = (data.success ? "✓ " : "✗ ") + data.message;
+
+                    // Hide message after 5 seconds
+                    setTimeout(() => { statusMsg.textContent = ""; }, 5000);
+
+                } catch (err) {
+                    statusMsg.style.color = "red";
+                    statusMsg.textContent = "✗ Error: " + err.message;
+                    setTimeout(() => { statusMsg.textContent = ""; }, 5000);
                 }
             });
 
             // --- AJAX: Update Permissions ---
-            const permMsg=document.getElementById('permMsg');
-            document.querySelectorAll('.permCheckbox').forEach(box=>{
-                box.addEventListener('change',async e=>{
-                    const module=e.target.dataset.module;
-                    const action=e.target.dataset.action;
-                    const checked=e.target.checked;
-                    permMsg.textContent="Saving...";
-                    try{
-                        const res=await fetch(`?id=<?php echo $staffId;?>&ajax=1`,{
-                            method:'POST',
-                            headers:{'Content-Type':'application/json'},
-                            body:JSON.stringify({type:'permission',module,action,checked})
+            document.querySelectorAll('.permCheckbox').forEach(box => {
+                box.addEventListener('change', async e => {
+                    const module = e.target.dataset.module;
+                    const action = e.target.dataset.action;
+                    const checked = e.target.checked;
+                    permMsg.textContent = "Saving...";
+                    try {
+                        const res = await fetch(`?id=<?php echo $staffId;?>&ajax=1`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ type: 'permission', module, action, checked })
                         });
-                        const data=await res.json();
+                        const data = await res.json();
                         permMsg.style.color = data.success ? "green" : "red";
-                        permMsg.textContent=(data.success?"✓ ":"✗ ") + data.message;
-                        if(!data.success) e.target.checked=!checked; // rollback on failure
-                    }catch(err){
-                        permMsg.style.color="red";
-                        permMsg.textContent="✗ Error: "+err.message;
-                        e.target.checked=!checked;
+                        permMsg.textContent = (data.success ? "✓ " : "✗ ") + data.message;
+
+                        if (!data.success) e.target.checked = !checked; // rollback
+
+                        // Hide message after 5 seconds
+                        setTimeout(() => { permMsg.textContent = ""; }, 5000);
+
+                    } catch (err) {
+                        permMsg.style.color = "red";
+                        permMsg.textContent = "✗ Error: " + err.message;
+                        e.target.checked = !checked;
+                        setTimeout(() => { permMsg.textContent = ""; }, 5000);
                     }
                 });
             });
