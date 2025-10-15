@@ -26,7 +26,7 @@ $stmt = $conn->prepare("
     LEFT JOIN chart_of_accounts parent_a ON a.parent_id = parent_a.id
     LEFT JOIN company_staff s ON h.performed_by = s.staff_id AND s.company_id = ?
     LEFT JOIN company_admins ca ON h.performed_by = ca.admin_id AND ca.company_id = ?
-    WHERE h.company_id = ? AND h.action_type = 'CREATE'
+    WHERE h.company_id = ?
     ORDER BY h.performed_at DESC
 ");
 
@@ -38,6 +38,33 @@ $stmt->bind_param("iii", $companyId, $companyId, $companyId);
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {
+    // Extract old_name, new_name, and account_code
+    $row['old_name'] = null;
+    $row['new_name'] = null;
+    $row['account_code'] = null;
+
+    if ($row['old_data']) {
+        $old = json_decode($row['old_data'], true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $row['old_name'] = $old['account_name'] ?? null;
+            if (!$row['account_code']) $row['account_code'] = $old['account_code'] ?? null;
+        }
+    }
+
+    if ($row['new_data']) {
+        $new = json_decode($row['new_data'], true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $row['new_name'] = $new['account_name'] ?? null;
+            if (!$row['account_code']) $row['account_code'] = $new['account_code'] ?? null;
+        }
+    }
+
+    // Fallback to account_name if available (for non-deleted)
+    if (!$row['old_name'] && !$row['new_name'] && $row['account_name']) {
+        $row['old_name'] = $row['account_name'];
+        $row['new_name'] = $row['account_name'];
+    }
+
     $history[] = $row;
 }
 ?>
@@ -46,7 +73,7 @@ while ($row = $result->fetch_assoc()) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Chart of Accounts Creation History</title>
+    <title>Chart of Accounts History</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         table { border-collapse: collapse; width: 100%; }
@@ -55,40 +82,47 @@ while ($row = $result->fetch_assoc()) {
     </style>
 </head>
 <body>
-    <h2>Chart of Accounts Creation History</h2>
-    <p>This shows who created which accounts for your company.</p>
+    <h2>Chart of Accounts History</h2>
+    <p>This shows the history of account creations, updates, and deletions for your company.</p>
 
     <a href="../AdminPanel/dashboard.php">Back to Dashboard</a>
 
     <?php if (empty($history)): ?>
-        <p>No creation history found.</p>
+        <p>No history found.</p>
     <?php else: ?>
-        <h3>Created Accounts</h3>
+        <h3>Account Operations History</h3>
         <table>
             <tr>
                 <th>Serial No.</th>
-                <th>Created By</th>
-                <th>Date Created</th>
+                <th>Operation</th>
+                <th>Performed By</th>
+                <th>Date Performed</th>
                 <th>Parent Account</th>
+                <th>Old Name</th>
+                <th>New Name</th>
                 <th>Account Details</th>
             </tr>
             <?php $serial = 1; foreach ($history as $h): ?>
             <tr>
                 <td><?= $serial++ ?></td>
+                <td><?= htmlspecialchars($h['action_type'] ?? 'N/A') ?></td>
                 <td><?= htmlspecialchars($h['performer_name'] ?? 'Unknown') ?></td>
                 <td><?= htmlspecialchars($h['performed_at']) ?></td>
                 <td><?= htmlspecialchars($h['parent_name'] ?? 'N/A') ?></td>
+                <td><?= htmlspecialchars($h['old_name'] ?? 'N/A') ?></td>
+                <td><?= htmlspecialchars($h['new_name'] ?? 'N/A') ?></td>
                 <td>
                     <div class="details">
                         <?php
-                        $newData = $h['new_data'] ?? null;
-                        if ($newData) {
-                            $data = json_decode($newData, true);
-                            if (json_last_error() === JSON_ERROR_NONE) {
-                                echo "account name : " . htmlspecialchars($data['account_name'] ?? 'N/A') . ", account_type : " . htmlspecialchars($data['account_type'] ?? 'N/A');
-                            } else {
-                                echo htmlspecialchars($newData);
-                            }
+                        // Show account_code and account_type from available data
+                        $data = null;
+                        if ($h['new_data']) {
+                            $data = json_decode($h['new_data'], true);
+                        } elseif ($h['old_data']) {
+                            $data = json_decode($h['old_data'], true);
+                        }
+                        if ($data && json_last_error() === JSON_ERROR_NONE) {
+                            echo "Code: " . htmlspecialchars($data['account_code'] ?? 'N/A') . ", Type: " . htmlspecialchars($data['account_type'] ?? 'N/A');
                         } else {
                             echo 'N/A';
                         }
