@@ -39,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $rowCheck = $resultCheck->fetch_assoc();
 
                     if ($rowCheck && $rowCheck['is_system'] == 0 && $rowCheck['company_id'] == $companyId) {
-                        // Get old data for history
-                        $stmtOld = $conn->prepare("SELECT account_code, account_name, normal_side, account_type FROM chart_of_accounts WHERE id = ?");
+                        // Get old data for parent
+                        $stmtOld = $conn->prepare("SELECT account_code, account_name, normal_side, account_type, parent_id FROM chart_of_accounts WHERE id = ?");
                         if (!$stmtOld) {
                             throw new Exception("Unable to prepare old data query. Please try again.");
                         }
@@ -48,22 +48,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmtOld->execute();
                         $resultOld = $stmtOld->get_result();
                         $oldRow = $resultOld->fetch_assoc();
+
+                        // Fetch parent name for old data
+                        $parentName = null;
+                        if ($oldRow['parent_id']) {
+                            $stmtParent = $conn->prepare("SELECT account_name FROM chart_of_accounts WHERE id = ? AND (company_id IS NULL OR company_id = ?)");
+                            if ($stmtParent) {
+                                $stmtParent->bind_param("ii", $oldRow['parent_id'], $companyId);
+                                $stmtParent->execute();
+                                $parentResult = $stmtParent->get_result();
+                                $parentRow = $parentResult->fetch_assoc();
+                                $parentName = $parentRow ? $parentRow['account_name'] : null;
+                                $stmtParent->close();
+                            }
+                        }
+
                         $oldData = json_encode([
                             'account_code' => $oldRow['account_code'],
                             'account_name' => $oldRow['account_name'],
                             'normal_side' => $oldRow['normal_side'],
-                            'account_type' => $oldRow['account_type']
+                            'account_type' => $oldRow['account_type'],
+                            'parent_id' => $oldRow['parent_id'],
+                            'parent_name' => $parentName
                         ]);
 
-                        // Delete children first
-                        $stmtDelChildren = $conn->prepare("DELETE FROM chart_of_accounts WHERE parent_id = ? AND company_id = ?");
-                        if (!$stmtDelChildren) {
-                            throw new Exception("Unable to prepare children delete query. Please try again.");
+                        // Handle children: fetch, log history, and delete each
+                        $stmtChildren = $conn->prepare("SELECT id FROM chart_of_accounts WHERE parent_id = ? AND company_id = ?");
+                        if (!$stmtChildren) {
+                            throw new Exception("Unable to prepare children query. Please try again.");
                         }
-                        $stmtDelChildren->bind_param("ii", $accountId, $companyId);
-                        $stmtDelChildren->execute();
+                        $stmtChildren->bind_param("ii", $accountId, $companyId);
+                        $stmtChildren->execute();
+                        $resultChildren = $stmtChildren->get_result();
+                        while ($childRow = $resultChildren->fetch_assoc()) {
+                            $childId = $childRow['id'];
 
-                        // Delete the account
+                            // Get old data for child
+                            $stmtChildOld = $conn->prepare("SELECT account_code, account_name, normal_side, account_type, parent_id FROM chart_of_accounts WHERE id = ?");
+                            if (!$stmtChildOld) {
+                                throw new Exception("Unable to prepare child old data query. Please try again.");
+                            }
+                            $stmtChildOld->bind_param("i", $childId);
+                            $stmtChildOld->execute();
+                            $childResult = $stmtChildOld->get_result();
+                            $childOldRow = $childResult->fetch_assoc();
+
+                            // Fetch parent name for child old data (parent is the one being deleted, but name is current)
+                            $childParentName = $oldRow['account_name']; // Since parent is the account being deleted
+
+                            $childOldData = json_encode([
+                                'account_code' => $childOldRow['account_code'],
+                                'account_name' => $childOldRow['account_name'],
+                                'normal_side' => $childOldRow['normal_side'],
+                                'account_type' => $childOldRow['account_type'],
+                                'parent_id' => $childOldRow['parent_id'],
+                                'parent_name' => $childParentName
+                            ]);
+
+                            // Log history for child
+                            $stmtChildHist = $conn->prepare("INSERT INTO chart_of_accounts_history (account_id, company_id, action_type, old_data, new_data, performed_by) VALUES (?, ?, 'DELETE', ?, NULL, ?)");
+                            if (!$stmtChildHist) {
+                                throw new Exception("Unable to prepare child history insert. Please try again.");
+                            }
+                            $stmtChildHist->bind_param("iisi", $childId, $companyId, $childOldData, $userId);
+                            $stmtChildHist->execute();
+
+                            // Delete child
+                            $stmtDelChild = $conn->prepare("DELETE FROM chart_of_accounts WHERE id = ? AND company_id = ?");
+                            if (!$stmtDelChild) {
+                                throw new Exception("Unable to prepare child delete query. Please try again.");
+                            }
+                            $stmtDelChild->bind_param("ii", $childId, $companyId);
+                            $stmtDelChild->execute();
+                        }
+
+                        // Now delete the parent
                         $stmtDel = $conn->prepare("DELETE FROM chart_of_accounts WHERE id = ? AND company_id = ?");
                         if (!$stmtDel) {
                             throw new Exception("Unable to prepare delete query. Please try again.");
@@ -71,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmtDel->bind_param("ii", $accountId, $companyId);
                         $stmtDel->execute();
 
-                        // Log history
+                        // Log history for parent
                         $stmtHist = $conn->prepare("INSERT INTO chart_of_accounts_history (account_id, company_id, action_type, old_data, new_data, performed_by) VALUES (?, ?, 'DELETE', ?, NULL, ?)");
                         if (!$stmtHist) {
                             throw new Exception("Unable to prepare history insert. Please try again.");
@@ -80,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmtHist->execute();
 
                         $conn->commit();
-                        $success = "Account deleted successfully!";
+                        $success = "Account and its children deleted successfully!";
                     } else {
                         throw new Exception("Cannot delete system default or unauthorized account.");
                     }
@@ -98,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $conn->begin_transaction();
                 try {
                     // Check if it's a company entry
-                    $stmtCheck = $conn->prepare("SELECT is_system, company_id FROM chart_of_accounts WHERE id = ?");
+                    $stmtCheck = $conn->prepare("SELECT is_system, company_id, parent_id FROM chart_of_accounts WHERE id = ?");
                     if (!$stmtCheck) {
                         throw new Exception("Unable to prepare check query. Please try again.");
                     }
@@ -109,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     if ($rowCheck && $rowCheck['is_system'] == 0 && $rowCheck['company_id'] == $companyId) {
                         // Get old data
-                        $stmtOld = $conn->prepare("SELECT account_code, account_name, normal_side, account_type FROM chart_of_accounts WHERE id = ?");
+                        $stmtOld = $conn->prepare("SELECT account_code, account_name, normal_side, account_type, parent_id FROM chart_of_accounts WHERE id = ?");
                         if (!$stmtOld) {
                             throw new Exception("Unable to prepare old data query. Please try again.");
                         }
@@ -117,11 +176,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmtOld->execute();
                         $resultOld = $stmtOld->get_result();
                         $oldRow = $resultOld->fetch_assoc();
+
+                        // Fetch parent name for old data
+                        $parentName = null;
+                        if ($oldRow['parent_id']) {
+                            $stmtParent = $conn->prepare("SELECT account_name FROM chart_of_accounts WHERE id = ? AND (company_id IS NULL OR company_id = ?)");
+                            if ($stmtParent) {
+                                $stmtParent->bind_param("ii", $oldRow['parent_id'], $companyId);
+                                $stmtParent->execute();
+                                $parentResult = $stmtParent->get_result();
+                                $parentRow = $parentResult->fetch_assoc();
+                                $parentName = $parentRow ? $parentRow['account_name'] : null;
+                                $stmtParent->close();
+                            }
+                        }
+
                         $oldData = json_encode([
                             'account_code' => $oldRow['account_code'],
                             'account_name' => $oldRow['account_name'],
                             'normal_side' => $oldRow['normal_side'],
-                            'account_type' => $oldRow['account_type']
+                            'account_type' => $oldRow['account_type'],
+                            'parent_id' => $oldRow['parent_id'],
+                            'parent_name' => $parentName
                         ]);
 
                         // Update account name only
@@ -145,7 +221,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'account_code' => $oldRow['account_code'],
                             'account_name' => $newName,
                             'normal_side' => $oldRow['normal_side'],
-                            'account_type' => $oldRow['account_type']
+                            'account_type' => $oldRow['account_type'],
+                            'parent_id' => $oldRow['parent_id'],
+                            'parent_name' => $parentName
                         ]);
 
                         // Log history
@@ -197,11 +275,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             try {
                 $subParentIdForChild = $subParentId; // Use existing if provided
+                $topId = null;
+                $parentNameForSub = null; // For subparent's parent (top level)
 
+                // ------------------------- 
+                // Get top level ID and its name for subparent
                 // -------------------------
-                // Insert new sub-parent if provided
-                // -------------------------
-                if ($newSubParentName) {
+                if ($parentType) {
                     $prefix = ($parentType === 'Asset') ? '10' :
                               (($parentType === 'Liability') ? '20' :
                               (($parentType === 'Equity') ? '30' :
@@ -209,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $topCode = sprintf("%02d000000", intval($prefix));
 
-                    $stmt_top = $conn->prepare("SELECT id FROM chart_of_accounts WHERE account_type = ? AND parent_id IS NULL AND account_code = ? AND (company_id IS NULL OR company_id = ?)");
+                    $stmt_top = $conn->prepare("SELECT id, account_name FROM chart_of_accounts WHERE account_type = ? AND parent_id IS NULL AND account_code = ? AND (company_id IS NULL OR company_id = ?)");
                     if (!$stmt_top) {
                         throw new Exception("Unable to prepare query for top-level account. Please try again.");
                     }
@@ -223,7 +303,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $topId = $row_top['id'];
+                    $parentNameForSub = $row_top['account_name'];
+                }
 
+                // -------------------------
+                // Insert new sub-parent if provided
+                // -------------------------
+                if ($newSubParentName) {
                     // Get next sub-parent code
                     $stmt = $conn->prepare("
                         SELECT MAX(CAST(SUBSTRING(account_code, 3, 2) AS UNSIGNED)) as max_code 
@@ -269,13 +355,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $subParentIdForChild = $stmtInsert->insert_id;
 
                     // -------------------------
-                    // Insert History
+                    // Insert History for sub-parent
                     // -------------------------
                     $newData = json_encode([
                         'account_code' => $subAccountCode,
                         'account_name' => $newSubParentName,
                         'normal_side' => $normalSide,
-                        'account_type' => $parentType
+                        'account_type' => $parentType,
+                        'parent_id' => $topId,
+                        'parent_name' => $parentNameForSub
                     ]);
 
                     $stmtHist = $conn->prepare("
@@ -302,8 +390,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Insert child entry only if childName is provided
                 // -------------------------
                 if ($childName) {
+                    // Fetch sub-parent details for child code and parent info
+                    $stmtSubParent = $conn->prepare("SELECT account_code, account_name, parent_id FROM chart_of_accounts WHERE id = ?");
+                    if (!$stmtSubParent) {
+                        throw new Exception("Unable to prepare query for sub-parent details. Please try again.");
+                    }
+                    $stmtSubParent->bind_param("i", $subParentIdForChild);
+                    $stmtSubParent->execute();
+                    $resultSub = $stmtSubParent->get_result();
+                    $subParentRow = $resultSub->fetch_assoc();
+
+                    if (!$subParentRow) {
+                        throw new Exception("Sub-parent not found. Please try again.");
+                    }
+
+                    $subParentCodeFull = $subParentRow['account_code'];
+                    $subParentName = $subParentRow['account_name'];
+                    $grandParentId = $subParentRow['parent_id'];
+
+                    // Fetch grandparent name if exists
+                    $grandParentName = null;
+                    if ($grandParentId) {
+                        $stmtGrand = $conn->prepare("SELECT account_name FROM chart_of_accounts WHERE id = ? AND (company_id IS NULL OR company_id = ?)");
+                        if ($stmtGrand) {
+                            $stmtGrand->bind_param("ii", $grandParentId, $companyId);
+                            $stmtGrand->execute();
+                            $grandResult = $stmtGrand->get_result();
+                            $grandRow = $grandResult->fetch_assoc();
+                            $grandParentName = $grandRow ? $grandRow['account_name'] : null;
+                            $stmtGrand->close();
+                        }
+                    }
+
                     // Determine next child code
-                    $stmt = $conn->prepare("SELECT MAX(account_code) as max_code FROM chart_of_accounts WHERE parent_id=? AND (company_id IS NULL OR company_id = ?)");
+                    $stmt = $conn->prepare("SELECT MAX(CAST(SUBSTRING(account_code, 5) AS UNSIGNED)) as max_code FROM chart_of_accounts WHERE parent_id=? AND (company_id IS NULL OR company_id = ?)");
                     if (!$stmt) {
                         throw new Exception("Unable to prepare query for next child code. Please try again.");
                     }
@@ -311,26 +431,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute();
                     $result = $stmt->get_result();
                     $row = $result->fetch_assoc();
-                    $maxCode = $row['max_code'] ?? null;
-
-                    $subParentCode = null;
-                    if ($maxCode) {
-                        $childCodeNum = intval(substr($maxCode,4)) + 1;
-                        $subParentCode = substr($maxCode, 0, 4);
-                    } else {
-                        $stmtSub = $conn->prepare("SELECT account_code FROM chart_of_accounts WHERE id=?");
-                        if (!$stmtSub) {
-                            throw new Exception("Unable to prepare query for sub-parent code. Please try again.");
-                        }
-                        $stmtSub->bind_param("i", $subParentIdForChild);
-                        $stmtSub->execute();
-                        $resultSub = $stmtSub->get_result();
-                        $subParentRow = $resultSub->fetch_assoc();
-                        $subParentCode = substr($subParentRow['account_code'], 0, 4);
-                        $childCodeNum = intval(substr($subParentRow['account_code'],4,4)) + 1;
-                    }
-
-                    $childCode = $subParentCode . str_pad($childCodeNum, 4, '0', STR_PAD_LEFT);
+                    $currentMaxChild = $row['max_code'] ?? 0;
+                    $nextChildCode = $currentMaxChild + 1;
+                    $childCode = substr($subParentCodeFull, 0, 4) . str_pad($nextChildCode, 4, '0', STR_PAD_LEFT);
 
                     $stmtInsertChild = $conn->prepare("
                         INSERT INTO chart_of_accounts 
@@ -364,7 +467,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'account_code' => $childCode,
                         'account_name' => $childName,
                         'normal_side' => $normalSide,
-                        'account_type' => $parentType
+                        'account_type' => $parentType,
+                        'parent_id' => $subParentIdForChild,
+                        'parent_name' => $subParentName
                     ]);
 
                     $stmtHistChild = $conn->prepare("

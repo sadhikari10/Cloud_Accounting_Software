@@ -34,6 +34,7 @@ $permissions = $_SESSION['Permissions'] ?? []; // Load permissions from session
     <h1>Staff Dashboard</h1>
     <p>Welcome, <strong><?php echo htmlspecialchars($staffName); ?></strong>!</p>
 
+        <a href="../Common/chart_of_accounts.php">COA</a>
     <div class="dashboard-actions">
         <?php if (!empty($permissions['customers']['create'])): ?>
             <a href="../Common/add_customer.php" class="btn">Add New Customer</a>
