@@ -345,9 +345,9 @@ th, td { border:1px solid #ccc; padding: 8px; text-align: left; }
 </head>
 <body>
     <a href="../AdminPanel/dashboard.php" style="text-decoration:none;">
-  <button>Back to Dashboard</button>
-</a>
-
+        <button>Back to Dashboard</button>
+    </a>
+    
 <h2>Chart of Accounts</h2>
 
 <?php if($error): ?><p class="error"><?=htmlspecialchars($error)?></p><?php endif; ?>

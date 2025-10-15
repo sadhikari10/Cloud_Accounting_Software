@@ -146,6 +146,9 @@ $conn->close();
         <!-- Chart Of Accounts -->
         <a href="../Common/chart_of_accounts.php" class="btn">Chart Of Accounts</a>
 
+        <!-- Chart of Accounts history -->
+        <a href="../Common/chart_of_accounts_history.php" class="btn">Chart of Accounts History</a>
+
         <!-- Add customers -->
         <a href="../Common/add_customers.php" class="btn">Add Customers</a>
 
