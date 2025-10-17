@@ -150,7 +150,7 @@ $conn->close();
         <a href="../Common/chart_of_accounts_history.php" class="btn">Chart of Accounts History</a>
 
         <!-- Add customers -->
-        <a href="../Common/add_customers.php" class="btn">Add Customers</a>
+        <a href="../Common/add_customers.php" class="btn">Customer Management</a>
 
     <?php else: ?>
         <p>You are logged in as Staff.</p>
